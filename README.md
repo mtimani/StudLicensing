@@ -26,5 +26,5 @@ docker compose up
 docker compose down
 ```
 
-[!WARNING]
-In order for the code modifications be reflected in the docker containers, you must perform a `docker compose down` followed by a `docker compose up`
+> [!WARNING]
+> In order for the code modifications be reflected in the docker containers, you must perform a `docker compose down` followed by a `docker compose up`
