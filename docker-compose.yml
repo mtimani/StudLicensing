@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  backend:
+    container_name: fastapi-backend
+    build:
+      context: StudLicensing/backend/
+      dockerfile: Dockerfile
+    volumes:
+      - ./StudLicensing/backend/app:/app
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    network_mode: host
+
+  db:
+    container_name: postgres-db
+    image: postgres:17.4
+    env_file:
+      - .env
+    volumes:
+      - ./StudLicensing/db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    network_mode: host
