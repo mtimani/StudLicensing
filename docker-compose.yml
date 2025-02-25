@@ -6,6 +6,8 @@ services:
     build:
       context: StudLicensing/backend/
       dockerfile: Dockerfile
+    env_file:
+      - .env
     volumes:
       - ./StudLicensing/backend/app:/app
     ports:
