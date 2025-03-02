@@ -1,6 +1,19 @@
 version: "3.9"
 
 services:
+  frontend:
+    container_name: react-frontend
+    image: node:23.9.0
+    working_dir: /app
+    volumes:
+      - ./StudLicensing/frontend/app:/app
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+    command: >
+      sh -c "npm install && npm start"
+
   backend:
     container_name: fastapi-backend
     build:
