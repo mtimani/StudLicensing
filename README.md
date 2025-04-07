@@ -4,7 +4,7 @@
 Run the following commands to clone or pull the latest StudLicensing repo:
 ```bash
 # First time clone
-git clone https://github.com/mtimani/StudLicensing.git
+git clone git@github.com:mtimani/StudLicensing.git
 
 # If repo already cloned
 git pull origin main
