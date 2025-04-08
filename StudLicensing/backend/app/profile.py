@@ -2,7 +2,8 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, status
 from sqlalchemy.orm import Session
 from database import SessionLocal
-from typing import Annotated
+from pydantic import BaseModel, Field
+from typing import Annotated, Optional
 from sqlalchemy_imageattach.entity import store_context
 from PIL import Image
 from io import BytesIO
@@ -28,6 +29,10 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
+class UpdateProfileInfo(BaseModel):
+    name: Optional[str] = Field(None, max_length=50)
+    surname: Optional[str] = Field(None, max_length=50)
+
 @router.get("/info")
 def get_profile_info(
     current_user: dict = Depends(get_current_user),
@@ -46,6 +51,43 @@ def get_profile_info(
         "name": db_user.name,
         "surname": db_user.surname,
     }
+
+@router.put("/info", status_code=status.HTTP_200_OK)
+def update_profile_info(
+    current_user: dict = Depends(get_current_user),
+    update_data: UpdateProfileInfo = ...,
+    db: Session = Depends(get_db)
+):
+    """
+    Updates the authenticated user's profile info (name, surname, password).
+    Fields not provided remain unchanged.
+    """
+    # 1. Fetch user from DB
+    db_user = db.query(Users).filter(Users.id == current_user["id"]).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # 2. Update fields if they are provided
+    if update_data.name is not None:
+        db_user.name = update_data.name
+
+    if update_data.surname is not None:
+        db_user.surname = update_data.surname
+
+    # 3. Commit changes
+    db.commit()
+    db.refresh(db_user)
+
+    return {
+        "detail": "Profile updated successfully",
+        "user": {
+            "id": db_user.id,
+            "username": db_user.username,
+            "name": db_user.name,
+            "surname": db_user.surname,
+        }
+    }
+
 
 @router.get("/picture")
 def get_profile_picture(
