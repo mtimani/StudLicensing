@@ -12,7 +12,7 @@ from fastapi import FastAPI, status, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
-from auth import router
+from auth import router, get_current_user
 import models
 import auth
 from database import engine, SessionLocal
@@ -91,9 +91,10 @@ def get_db():
         db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
+user_dependency = Annotated[dict, Depends(get_current_user)]
 
 @app.get("/", status_code=status.HTTP_200_OK)
-async def user(user: None, db: db_dependency):
+async def user(user: user_dependency, db: db_dependency):
     if user is None:
         raise HTTPException(status_code=401, detail='Authentication Failed')
     return {"User": user}
