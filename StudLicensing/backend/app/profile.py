@@ -1,8 +1,12 @@
 import json
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, status
 from sqlalchemy.orm import Session
 from database import SessionLocal
 from typing import Annotated
+from sqlalchemy_imageattach.entity import store_context
+from PIL import Image
+from io import BytesIO
+import os
 
 
 # Import existing auth dependencies
@@ -72,3 +76,85 @@ def get_profile_picture(
 
     # We can just return a Response with the raw bytes:
     return Response(content=image_bytes, media_type=mimetype)
+
+@router.put("/picture", status_code=status.HTTP_200_OK)
+async def update_profile_picture(
+    current_user: dict = Depends(get_current_user),
+    new_picture: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Updates (or sets) the user's profile picture. If an old picture exists, it is deleted
+    (including the file on disk). Then the new one is stored.
+    """
+    db_user = db.query(Users).filter(Users.id == current_user["id"]).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # -- 1) Validate the new image
+    profilePicture = new_picture
+    if profilePicture is not None:
+        # Check file extension.
+        ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
+        ext = os.path.splitext(profilePicture.filename)[1].lower()
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
+        
+        # Check content type.
+        ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif"}
+        provided_mimetype = profilePicture.content_type
+        if not provided_mimetype or provided_mimetype not in ALLOWED_MIME_TYPES:
+            # If content_type is not provided or not acceptable, assign a default based on extension.
+            if ext in {".jpg", ".jpeg"}:
+                mimetype = "image/jpeg"
+            elif ext == ".png":
+                mimetype = "image/png"
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Uploaded file is not a valid image."
+                )
+        else:
+            mimetype = provided_mimetype
+
+    file_data = await profilePicture.read()
+
+    # Validate the image using Pillow.
+    try:
+        bytes_io = BytesIO(file_data)
+        image = Image.open(bytes_io)
+        image.verify()  # Verify image integrity
+        # Re-open to ensure it's usable afterwards:
+        bytes_io.seek(0)
+        image = Image.open(bytes_io)
+        if image.format not in {"JPEG", "PNG"}:
+            raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
+        width, height = image.size
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Uploaded file is not a valid image.")
+
+    # -- 2) Remove the old picture (if any) inside a store_context
+    from sqlalchemy_imageattach.entity import store_context
+    from models import store  # Your FileSystemStore(...) instance
+
+    with store_context(store):
+        # Convert to list so we can iterate the existing pictures
+        old_pictures = list(db_user.profilePicture)
+        for old_pic in old_pictures:
+            db.delete(old_pic)
+        db.commit()  # This triggers the post-delete hook to remove old files from disk
+
+        # -- 3) Create a new UserPicture record
+        new_user_pic = UserPicture()
+        new_user_pic.mimetype = mimetype
+        new_user_pic.width = width
+        new_user_pic.height = height
+        new_user_pic.store = store  # The configured FileSystemStore
+        new_user_pic.file = BytesIO(file_data)
+        db_user.profilePicture = [new_user_pic]
+
+        # Commit to save new picture
+        db.commit()
+        db.refresh(db_user)
+
+    return {"detail": "Profile picture updated successfully."}
