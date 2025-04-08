@@ -1,7 +1,8 @@
 import os
 from datetime import timedelta, datetime
 from typing import Annotated, Optional
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from sqlalchemy_imageattach.entity import store_context
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, EmailStr, ValidationError
@@ -244,3 +245,27 @@ async def logout(user: dict = Depends(get_current_user), db: Session = Depends(g
     session_token.is_active = False
     db.commit()
     return {"detail": "Successfully logged out."}
+
+@router.delete("/account_delete", status_code=status.HTTP_200_OK)
+async def delete_account(
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    user_id = current_user["id"]
+
+    # Query the user
+    db_user = db.query(Users).filter(Users.id == user_id).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    # If you want to remove session tokens manually:
+    db.query(SessionTokens).filter_by(user_id=user_id).delete()
+    db.commit()
+
+    # Wrap the DB delete in a store_context so imageattach can cleanly remove files
+    from sqlalchemy_imageattach.entity import store_context
+    with store_context(store):
+        db.delete(db_user)
+        db.commit()
+
+    return {"detail": "Account deleted successfully."}
