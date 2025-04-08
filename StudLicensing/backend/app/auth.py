@@ -48,6 +48,11 @@ class CreateUserRequest(BaseModel):
     surname: str
     password: str
 
+# Change password parameters
+class ChangePasswordRequest(BaseModel):
+    new_password: str
+    confirm_password: str
+
 # Token creation parameters
 class Token(BaseModel):
     access_token: str
@@ -62,6 +67,34 @@ def get_db():
         db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
+
+# Get current user
+async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)], db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except JWTError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
+
+    username: str = payload.get("sub")
+    user_id: int = payload.get("id")
+    jti: str = payload.get("jti")
+    exp: int = payload.get("exp")
+
+    if not all([username, user_id, jti, exp]):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
+
+    # Check if jti is in DB and active
+    session_token = db.query(SessionTokens).filter_by(jti=jti).first()
+    if not session_token or not session_token.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
+
+    if session_token.expires_at < datetime.utcnow():
+        # Mark DB record as inactive if you wish
+        session_token.is_active = False
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
+
+    return {"username": username, "id": user_id, "jti": jti}
 
 # Route to create user
 @router.post("/account_create", status_code=status.HTTP_201_CREATED)
@@ -150,6 +183,35 @@ async def create_user(
 
     return {"id": new_user.id, "username": new_user.username}
 
+@router.post("/change_password", status_code=status.HTTP_200_OK)
+async def change_password(
+    data: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Allows a logged-in user to change their password, requiring new_password and confirm_password.
+    If they match, re-hash and update the user's password in DB.
+    """
+    # 1. Check if new_password matches confirm_password
+    if data.new_password != data.confirm_password:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New password and confirm password do not match."
+        )
+
+    # 2. Fetch the user from DB
+    db_user = db.query(Users).filter(Users.id == current_user["id"]).first()
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    # 3. Hash the new password and update
+    db_user.hashedPassword = bcrypt_context.hash(data.new_password)
+    db.commit()
+    db.refresh(db_user)
+
+    return {"detail": "Password changed successfully."}
+
 # Route to create user
 @router.post("/token", response_model=Token)
 async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session = Depends(get_db)):
@@ -206,33 +268,6 @@ def create_access_token(username: str, user_id: int, expires_delta: timedelta, d
     }
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-
-async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)], db: Session = Depends(get_db)):
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-    except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
-
-    username: str = payload.get("sub")
-    user_id: int = payload.get("id")
-    jti: str = payload.get("jti")
-    exp: int = payload.get("exp")
-
-    if not all([username, user_id, jti, exp]):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
-
-    # Check if jti is in DB and active
-    session_token = db.query(SessionTokens).filter_by(jti=jti).first()
-    if not session_token or not session_token.is_active:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
-
-    if session_token.expires_at < datetime.utcnow():
-        # Mark DB record as inactive if you wish
-        session_token.is_active = False
-        db.commit()
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
-
-    return {"username": username, "id": user_id, "jti": jti}
     
 @router.post("/logout")
 async def logout(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
