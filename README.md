@@ -10,11 +10,11 @@ git clone git@github.com:mtimani/StudLicensing.git
 git pull origin main
 ```
 
-Create a .env file containing credentials for the Postgresql database:
-```env
-POSTGRES_USER=YOUR_POSTGRESQL_USER
-POSTGRES_PASSWORD=YOUR_POSTGRESQL_PASSWORD
-POSTGRES_DB=YOUR_POSTGRESQL_DB
+Generate `.env` files with the following command:
+```bash
+chmod +x generate_env.sh
+./generate_env.sh
+sudo rm -rf StudLicensing/db_data 
 ```
 
 Start and stop docker containers:
@@ -24,6 +24,9 @@ docker compose up
 
 # Stop and destroy the containers
 docker compose down
+
+# Restart all containers with updated code
+docker compose down && docker rmi studlicensing-backend:latest && docker compose up
 ```
 
 > [!WARNING]

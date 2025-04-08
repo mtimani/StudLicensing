@@ -23,6 +23,7 @@ services:
       - .env
     volumes:
       - ./StudLicensing/backend/app:/app
+      - ./StudLicensing/uploads:/uploads
     ports:
       - "8000:8000"
     depends_on:
