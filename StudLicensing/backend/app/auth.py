@@ -263,7 +263,6 @@ async def delete_account(
     db.commit()
 
     # Wrap the DB delete in a store_context so imageattach can cleanly remove files
-    from sqlalchemy_imageattach.entity import store_context
     with store_context(store):
         db.delete(db_user)
         db.commit()
