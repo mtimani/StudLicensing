@@ -8,13 +8,14 @@ from pydantic import BaseModel, EmailStr, ValidationError
 from sqlalchemy.orm import Session
 from starlette import status
 from database import SessionLocal
-from models import Users, UserPicture, store
+from models import Users, UserPicture, SessionTokens, store
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
 from dotenv import find_dotenv
 from PIL import Image
 from io import BytesIO
+import uuid
 
 # Load .env variables
 dotenv_path = find_dotenv()
@@ -33,7 +34,7 @@ ALGORITHM = "HS256"
 
 # Check that all required variables are set; if any is missing, raise an error.
 if SECRET_KEY is None:
-    raise ValueError("Environment variable 'POSTGRES_USER' is not defined. Please add it to your .env file.")
+    raise ValueError("Environment variable 'SECRET_KEY' is not defined. Please add it to your .env file.")
 
 # Create JWT context
 bcrypt_context = CryptContext(schemes = ['bcrypt'], deprecated = 'auto')
@@ -150,15 +151,20 @@ async def create_user(
 
 # Route to create user
 @router.post("/token", response_model=Token)
-async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: db_dependency):
+async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: Session = Depends(get_db)):
     user = authenticate_user(form_data.username, form_data.password, db)
 
     if not user:
         raise HTTPException(status_code = status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
     
-    token = create_access_token(user.username, user.id, timedelta(minutes=30))
-
-    return {'access_token': token, 'token_type': 'bearer'}
+    access_token = create_access_token(
+        user.username, 
+        user.id, 
+        timedelta(minutes=30), 
+        db
+    )
+    
+    return {"access_token": access_token, "token_type": "bearer"}
 
 def authenticate_user(username: str, password: str, db):
     user = db.query(Users).filter(Users.username == username).first()
@@ -168,20 +174,73 @@ def authenticate_user(username: str, password: str, db):
         return False
     return user
 
-def create_access_token(username: str, user_id: int, expires_delta: timedelta):
-    encode = {'sub': username, 'id': user_id}
-    expires = datetime.utcnow() + expires_delta
-    encode.update({'exp': expires})
-    return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
+def revoke_token(jti: str, exp_timestamp: float):
+    """
+    Put the jti in a store until it expires.
+    For demo, we'll just store it in memory with its expiry time.
+    """
+    REVOKED_TOKENS.add(jti)
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)]):
+def create_access_token(username: str, user_id: int, expires_delta: timedelta, db: Session):
+    # Unique token per JWT => to facilitate revocation (for logout purposes)
+    jti = str(uuid.uuid4())
+    expire_time = datetime.utcnow() + expires_delta
+    
+    # Insert into DB
+    session_token = SessionTokens(
+        jti=jti,
+        user_id=user_id,
+        expires_at=expire_time
+    )
+    db.add(session_token)
+    db.commit()
+    db.refresh(session_token)
+    
+    # Create JWT
+    to_encode = {
+        "sub": username,
+        "id": user_id,
+        "jti": jti,
+        "exp": expire_time
+    }
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+async def get_current_user(token: Annotated[str, Depends(oauth2_bearer)], db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get('sub')
-        user_id: int = payload.get('id')
-        if username is None or user_id is None:
-            raise HTTPException(status_code = status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
-        return {'username': username, 'id': user_id}
     except JWTError:
-        raise HTTPException(status_code = status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
+
+    username: str = payload.get("sub")
+    user_id: int = payload.get("id")
+    jti: str = payload.get("jti")
+    exp: int = payload.get("exp")
+
+    if not all([username, user_id, jti, exp]):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
+
+    # Check if jti is in DB and active
+    session_token = db.query(SessionTokens).filter_by(jti=jti).first()
+    if not session_token or not session_token.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
+
+    if session_token.expires_at < datetime.utcnow():
+        # Mark DB record as inactive if you wish
+        session_token.is_active = False
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
+
+    return {"username": username, "id": user_id, "jti": jti}
     
+@router.post("/logout")
+async def logout(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    jti = user["jti"]
+    session_token = db.query(SessionTokens).filter_by(jti=jti).first()
+    if not session_token:
+        raise HTTPException(status_code=400, detail="Token not found.")
+    
+    # Mark it inactive
+    session_token.is_active = False
+    db.commit()
+    return {"detail": "Successfully logged out."}

@@ -1,8 +1,9 @@
 from database import Base
-from sqlalchemy import ForeignKey, Column, Integer, String, Date, Boolean
+from sqlalchemy import ForeignKey, Column, Integer, String, Date, Boolean, DateTime
 from sqlalchemy_imageattach.entity import Image, image_attachment
 from sqlalchemy.orm import relationship
 from sqlalchemy_imageattach.stores.fs import FileSystemStore
+from datetime import datetime
 
 # Store for profile images
 store = FileSystemStore(
@@ -34,3 +35,14 @@ class UserPicture(Base, Image):
     user = relationship('Users')
 
 
+class SessionTokens(Base):
+    __tablename__ = 'session_tokens'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    jti = Column(String, unique=True, index=True)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    is_active = Column(Boolean, default=True)
+
+    user = relationship("Users", backref="session_tokens")
