@@ -30,8 +30,8 @@ def get_db():
 db_dependency = Annotated[Session, Depends(get_db)]
 
 class UpdateProfileInfo(BaseModel):
-    name: Optional[str] = Field(None, max_length=50)
-    surname: Optional[str] = Field(None, max_length=50)
+    name: Optional[str] = Field(None, max_length=50, min_length=1)
+    surname: Optional[str] = Field(None, max_length=50, min_length=1)
 
 @router.get("/info")
 def get_profile_info(
