@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from auth import router, get_current_user
+from profile import router as profile_router
 import models
 import auth
 from database import engine, SessionLocal
@@ -79,6 +80,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include Auth Router
 app.include_router(auth.router)
+
+# Include Profile Router
+app.include_router(profile_router)
 
 models.Base.metadata.create_all(bind=engine)
 

@@ -48,6 +48,7 @@ venv.bak/
 
 # Docker files (specific to your project)
 db_data/
+uploads/
 
 # Environment variables file (do not commit sensitive info)
 .env
