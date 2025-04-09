@@ -7,7 +7,7 @@ from sqlalchemy_imageattach.entity import store_context
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
-from pydantic import BaseModel, EmailStr, ValidationError
+from pydantic import BaseModel, EmailStr, ValidationError, model_validator
 from sqlalchemy.orm import Session
 from starlette import status
 from database import SessionLocal
@@ -52,6 +52,13 @@ class CreateUserRequest(BaseModel):
     name: str
     surname: str
     password: str
+    confirm_password: str
+
+    @model_validator(mode="after")
+    def check_passwords(cls, model: "CreateUserRequest"):
+        if model.password != model.confirm_password:
+            raise ValueError("Passwords do not match.")
+        return model
 
 # Change password parameters
 class ChangePasswordRequest(BaseModel):
@@ -258,6 +265,7 @@ async def create_user(
     name: str = Form(...),
     surname: str = Form(...),
     password: str = Form(...),
+    confirm_password: str = Form(...),
     profilePicture: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db)
 ):
@@ -267,7 +275,8 @@ async def create_user(
             username=username,
             name=name,
             surname=surname,
-            password=password
+            password=password,
+            confirm_password=confirm_password
         )
     except ValidationError as ve:
         raise RequestValidationError(ve.errors())
