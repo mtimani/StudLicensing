@@ -8,14 +8,15 @@ if not hasattr(collections, "Iterator"):
 import time
 
 # Imports
+import models
+import auth
 from fastapi import FastAPI, status, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from auth import router, get_current_user
 from profile import router as profile_router
-import models
-import auth
+from datetime import datetime
 from database import engine, SessionLocal
 from typing import Annotated
 from sqlalchemy.orm import Session

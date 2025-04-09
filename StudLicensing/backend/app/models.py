@@ -34,7 +34,7 @@ class UserPicture(Base, Image):
     userId = Column(Integer, ForeignKey('users.id'), primary_key=True)
     user = relationship('Users')
 
-
+# Used for JWT Session tokens => To maintain authenticated user connection
 class SessionTokens(Base):
     __tablename__ = 'session_tokens'
     
@@ -46,3 +46,29 @@ class SessionTokens(Base):
     is_active = Column(Boolean, default=True)
 
     user = relationship("Users", backref="session_tokens")
+
+# Tokens used for email validation
+class ValidationTokens(Base):
+    __tablename__ = 'validation_tokens'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    is_used = Column(Boolean, default=False)
+    
+    user = relationship("Users", backref="validation_tokens")
+
+# Tokens used for password reset
+class PasswordResetTokens(Base):
+    __tablename__ = 'password_reset_tokens'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    token = Column(String, unique=True, index=True, nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    is_used = Column(Boolean, default=False)
+    
+    user = relationship("Users", backref="password_reset_tokens")

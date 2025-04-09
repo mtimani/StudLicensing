@@ -11,6 +11,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
+      - TZ=Europe/Paris
     command: >
       sh -c "npm install && npm start"
 

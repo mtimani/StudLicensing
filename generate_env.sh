@@ -18,6 +18,13 @@ POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 POSTGRES_DB=StudLicensingDB
 POSTGRES_PORT=5432
 SECRET_KEY=${SECRET_KEY}
+TZ=Europe/Paris
+BACKEND_URL=127.0.0.1:8000
+SMTP_SERVER=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USERNAME=studlicensing@gmail.com
+SMTP_PASSWORD=ENTER_PASSWORD
+FROM_EMAIL=studlicensing@gmail.com
 EOF
 
 echo ".env file created successfully."
