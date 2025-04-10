@@ -20,4 +20,4 @@ StudLicensing is a powerful and user-friendly license management solution design
 
 ## 📖 Documentation
 
-To start, check the [Installation](../../wiki/2.-Installation) page and the [Recommended User Guide](../../wiki/3.-User-Guide-‐-With-Docker-‐-Recommended) that describes the usage of the StudLicensing software.
+To start, check the [Installation](../../wiki/2.-Installation) page and the [Usage](../../wiki/3.-Usage) page that describes the usage of the StudLicensing software.
