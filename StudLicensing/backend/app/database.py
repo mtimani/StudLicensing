@@ -1,11 +1,19 @@
+# ===========================================
 # Imports
+# ===========================================
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from dotenv import find_dotenv
 
-# Load .env variables
+
+
+# ===========================================
+# Environment variables
+# ===========================================
+
+# Load environment variables
 dotenv_path = find_dotenv()
 if not dotenv_path:
     raise FileNotFoundError("'.env' file not found. Please make sure the file exists in the project directory.")
@@ -26,8 +34,13 @@ if POSTGRES_DB is None:
 if POSTGRES_PORT is None:
     raise ValueError("Environment variable 'POSTGRES_PORT' is not defined. Please add it to your .env file.")
 
-# Postgres Connection
-# Construct the SQLAlchemy database URL.
+
+
+# ===========================================
+# Database connection and related information
+# ===========================================
+
+# Postgres Connection with construction of the SQLAlchemy database URL
 SQLALCHEMY_DATABASE_URL = (
     f"postgresql://{POSTGRES_USER}:{POSTGRES_PASSWORD}@db:{POSTGRES_PORT}/{POSTGRES_DB}"
 )

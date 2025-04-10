@@ -1,4 +1,6 @@
+# ===========================================
 # Imports
+# ===========================================
 from database import Base
 from sqlalchemy import ForeignKey, Column, Integer, String, Date, Boolean, DateTime
 from sqlalchemy_imageattach.entity import Image, image_attachment
@@ -6,11 +8,21 @@ from sqlalchemy.orm import relationship
 from sqlalchemy_imageattach.stores.fs import FileSystemStore
 from datetime import datetime
 
-# Store for profile images
+
+
+# ===========================================
+# Store declaration for profile images upload
+# ===========================================
 store = FileSystemStore(
     path="/uploads",
     base_url="http://localhost:8000/uploads/"
 )
+
+
+
+# ===========================================
+# Database models classes declaration
+# ===========================================
 
 # Global Users class
 class Users(Base):
