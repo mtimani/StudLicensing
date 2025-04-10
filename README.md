@@ -10,6 +10,7 @@ git clone git@github.com:mtimani/StudLicensing.git
 git pull origin main
 ```
 
+## Environment variables generation
 Generate `.env` files with the following command:
 ```bash
 chmod +x generate_env.sh
@@ -19,6 +20,7 @@ sudo rm -rf StudLicensing/db_data
 > [!WARNING]
 > Do not forget to modify the `studlicensing@gmail.com` email password in the `.env` and `./StudLicensing/backend/app/.env`
 
+## Start the application + useful commands to restart / reset containers and database
 Start and stop docker containers:
 ```bash
 # Run and build with docker-compose.yml
