@@ -1,3 +1,4 @@
+# Imports
 from database import Base
 from sqlalchemy import ForeignKey, Column, Integer, String, Date, Boolean, DateTime
 from sqlalchemy_imageattach.entity import Image, image_attachment
@@ -11,6 +12,7 @@ store = FileSystemStore(
     base_url="http://localhost:8000/uploads/"
 )
 
+# Global Users class
 class Users(Base):
     __tablename__='users'
 
@@ -23,8 +25,7 @@ class Users(Base):
     activated = Column(Boolean, default=False, nullable=False)
     profilePicture = image_attachment('UserPicture')
 
-
-
+# User Profile Pictures class
 class UserPicture(Base, Image):
     __tablename__ = 'profilePictures'
     
@@ -34,7 +35,7 @@ class UserPicture(Base, Image):
     userId = Column(Integer, ForeignKey('users.id'), primary_key=True)
     user = relationship('Users')
 
-# Used for JWT Session tokens => To maintain authenticated user connection
+# Tokens used for JWT Session tokens => To maintain authenticated user connection
 class SessionTokens(Base):
     __tablename__ = 'session_tokens'
     
