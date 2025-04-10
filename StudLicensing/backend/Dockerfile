@@ -15,7 +15,7 @@ COPY ./requirements.txt /app
 
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy your FastAPI application code into the container
+# Copy FastAPI application code into the container
 COPY ./app/ /app
 
 # Expose the port that FastAPI will run on
