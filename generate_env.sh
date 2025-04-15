@@ -5,10 +5,10 @@
 rm -rf ./.env
 rm -rf ./StudLicensing/backend/app/.env
 
-# Generate a 30-character long random hex string (15 bytes * 2 = 30 characters)
+# Generate a 30-character long random hex string (30 bytes * 2 = 60 characters)
 POSTGRES_PASSWORD=$(openssl rand -hex 30)
 
-# Generate a 60-character long random hex string (30 bytes * 2 = 60 characters)
+# Generate a 60-character long random hex string (60 bytes * 2 = 120 characters)
 SECRET_KEY=$(openssl rand -hex 60)
 
 # Write the environment variables to the .env file
