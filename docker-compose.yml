@@ -11,6 +11,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
+      - TZ=Europe/Paris
     command: >
       sh -c "npm install && npm start"
 
@@ -23,6 +24,7 @@ services:
       - .env
     volumes:
       - ./StudLicensing/backend/app:/app
+      - ./StudLicensing/uploads:/uploads
     ports:
       - "8000:8000"
     depends_on:

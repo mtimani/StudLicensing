@@ -1,30 +1,23 @@
-# StudLicensing
+# 📜 StudLicensing
+Welcome to the StudLicensing repository!
 
-## Installation
-Run the following commands to clone or pull the latest StudLicensing repo:
-```bash
-# First time clone
-git clone https://github.com/mtimani/StudLicensing.git
+![StudLicensing](https://github.com/user-attachments/assets/0636f522-6239-45a1-ab92-ec4f983f9475)
 
-# If repo already cloned
-git pull origin main
-```
+StudLicensing is a powerful and user-friendly license management solution designed to help you create, distribute, and manage software licenses for your products and applications. Whether you're handling internal tools or commercial software, StudLicensing simplifies the entire licensing lifecycle for your company and clients.
 
-Create a .env file containing credentials for the Postgresql database:
-```env
-POSTGRES_USER=YOUR_POSTGRESQL_USER
-POSTGRES_PASSWORD=YOUR_POSTGRESQL_PASSWORD
-POSTGRES_DB=YOUR_POSTGRESQL_DB
-```
+## 🚀 Features
+- 🔐 Generate and manage license keys with ease
+- 🧾 Assign licenses to users or clients
+- 📦 Support for multiple products and applications
+- ⏳ Track license expiration and renewals
+- ⚙️ Easy integration into your existing systems
+- 🖥️ Clean, intuitive user interface
 
-Start and stop docker containers:
-```bash
-# Run and build with docker-compose.yml
-docker compose up
+## 🛠️ Use Cases
+- Software vendors distributing licenses to customers
+- Internal tools requiring controlled access
+- SaaS platforms managing subscription-based licensing
 
-# Stop and destroy the containers
-docker compose down
-```
+## 📖 Documentation
 
-> [!WARNING]
-> In order for the code modifications be reflected in the docker containers, you must perform a `docker compose down` followed by a `docker compose up`
+To start, check the [Installation](../../wiki/2.-Installation) page and the [Usage](../../wiki/3.-Usage) page that describes the usage of the StudLicensing software.

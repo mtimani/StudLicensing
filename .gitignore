@@ -40,16 +40,17 @@ venv.bak/
 # MyPy cache
 .mypy_cache/
 
-# Django logs (if applicable)
+# Logs
 *.log
 
 # VS Code settings
 .vscode/
 
-# Docker files (specific to your project)
+# Docker shared volumes
 db_data/
+uploads/
 
-# Environment variables file (do not commit sensitive info)
+# Environment variables files (do not commit sensitive info)
 .env
 
 # Other OS generated files
