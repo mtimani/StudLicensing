@@ -41,56 +41,8 @@ class UserTypeEnum(str, Enum):
     slcdevelopper = "slcdevelopper"
 
 
-# Global Users class
-class Users(Base):
-    __tablename__='users'
 
-    id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    name = Column(String, nullable=False)
-    surname = Column(String, nullable=False)
-    hashedPassword = Column(String, nullable=False)
-    creationDate = Column(DateTime, nullable=False)
-    activated = Column(Boolean, default=False, nullable=False)
-    userType=Column(SQLAlchemyEnum(UserTypeEnum), default=UserTypeEnum.basic)
-    profilePicture = image_attachment('UserPicture')    
-
-
-# User Profile Pictures class
-class UserPicture(Base, Image):
-    __tablename__ = 'profilePictures'
-    
-    # Image Store
-    store = store
-    
-    userId = Column(Integer, ForeignKey('users.id'), primary_key=True)
-    user = relationship('Users')
-
-class SLAdmin(Users):
-    pass 
-
-
-
-class SLClient(Users):
-    companyName=Column(String,unique=False)
-    # commercials  array commercials to do   
-    # admins array admins to do   
-    # clients array clients to do   
-    # developpers array developpers to do   
-    
-class SLClientAdmin(Users):
-    pass
-
-class SLCClient(Users):
-    pass
-
-class SLCCommercial(Users):
-    pass 
-
-class SLCDevelopper(Users):
-    pass 
-
-
+# Many to many relationship tables
 
 
 functionalities_licenses_correspondance = Table(
@@ -107,6 +59,119 @@ machines_licenses_correspondance = Table(
     Column("slccmachine_id", ForeignKey("slccmachine.id"), primary_key=True),
     Column("slcclicense_id", ForeignKey("slcclicense.id"), primary_key=True)
 )
+
+commercials_licenses_correspondance=Table(
+    "commercials_licenses",
+    Base.metadata,
+    Column("slccommercial_id", ForeignKey("slccommercial.id"), primary_key=True),
+    Column("slcclicense_id", ForeignKey("slcclicense.id"), primary_key=True)
+)
+
+
+
+# Global Users class
+class Users(Base):
+    __tablename__='users'
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    name = Column(String, nullable=False)
+    surname = Column(String, nullable=False)
+    hashedPassword = Column(String, nullable=False)
+    creationDate = Column(DateTime, nullable=False)
+    activated = Column(Boolean, default=False, nullable=False)
+    userType=Column(SQLAlchemyEnum(UserTypeEnum), default=UserTypeEnum.basic)
+    profilePicture = image_attachment('UserPicture')    
+    __mapper_args__ = {
+        'polymorphic_identity': UserTypeEnum.basic,
+        'polymorphic_on': userType,
+        'with_polymorphic': '*'
+    }
+
+# User Profile Pictures class
+class UserPicture(Base, Image):
+    __tablename__ = 'profilePictures'
+    
+    # Image Store
+    store = store
+    
+    userId = Column(Integer, ForeignKey('users.id'), primary_key=True)
+    user = relationship('Users')
+
+class SLAdmin(Users):
+    __tablename__='sladmin'
+
+    id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+
+    __mapper_args__ = {
+        'polymorphic_identity': UserTypeEnum.sladmin,
+    }
+     
+
+
+
+class SLClient(Users):
+    __tablename__='slclient'
+    
+    id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    companyName=Column(String,unique=False)
+    __mapper_args__ = {
+        'polymorphic_identity': UserTypeEnum.slclient,
+    } 
+    
+class SLClientAdmin(Users):
+    __tablename__='slclientadmin'
+
+    id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    company_id =Column(Integer,ForeignKey('slclient.id'))
+
+    company=relationship("SLClient", backref="slclientadmin")
+
+    __mapper_args__ = {
+        'polymorphic_identity': UserTypeEnum.slclientadmin,
+    }
+    
+
+
+class SLCClient(Users):
+    __tablename__='slcclient'
+
+    id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    company_id =Column(Integer,ForeignKey('slclient.id'))
+
+    company=relationship("SLClient", backref="slcclient")
+
+    __mapper_args__ = {
+        'polymorphic_identity': UserTypeEnum.slcclient,
+    }
+    
+    
+    
+
+class SLCCommercial(Users):
+    __tablename__='slccommercial'
+
+    id = Column(Integer, ForeignKey("users.id"), primary_key=True) 
+    company_id =Column(Integer,ForeignKey('slclient.id'))
+
+    company=relationship("SLClient", backref="slccommercial")
+    licenses=relationship("SLCCLicense",secondary=commercials_licenses_correspondance,back_populates='commercials')
+    __mapper_args__ = {
+        'polymorphic_identity': UserTypeEnum.slccommercial,
+    }
+
+class SLCDevelopper(Users):
+    __tablename__='slcdevelopper'
+
+    id = Column(Integer, ForeignKey("users.id"), primary_key=True) 
+    company_id =Column(Integer,ForeignKey('slclient.id'))
+
+    company=relationship("SLClient", backref="slcdevelopper")
+
+
+    __mapper_args__ = {
+        'polymorphic_identity': UserTypeEnum.slcdevelopper,
+    }
 
 
 
@@ -136,20 +201,27 @@ class SLCCLicense(Base):
     consumptionType=Column(SQLAlchemyEnum(LicenseConsumptionType), default=LicenseConsumptionType.basic)
     numberOfUseLeft=Column(String,unique=False)
     maxLicense=Column(String,unique=False)
-    # commercials  array commercials to do  
-    #client  commercials  array client to do 
-    application =Column(Integer,ForeignKey('slccapplication.id'))
+    
+    company_id =Column(Integer,ForeignKey('slclient.id'))
+    client_id =Column(Integer,ForeignKey('slcclient.id'))
+    application_id =Column(Integer,ForeignKey('slccapplication.id'))
+
+    company=relationship("SLClient", backref="slcclicense")
+    client=relationship("SLCClient", backref="slcclicense")
+    application=relationship("SLCCApplication", backref="slcclicense")
 
     functionalities = relationship("SLCCFunctionality",secondary=functionalities_licenses_correspondance,back_populates='licenses')
     machines=relationship("SLCCMachine",secondary=machines_licenses_correspondance,back_populates='licenses')  
-
+    
+    commercials=relationship("SLCCommercial",secondary=commercials_licenses_correspondance,back_populates='licenses')
+#slccliencence type vs slcclicence use
 
 class SLCCFunctionality(Base):
     __tablename__='slccfunctionality'
 
     id=Column(Integer,primary_key=True,index=True)
     name=Column(String,unique=False)
-    applicationId=Column(Integer,ForeignKey('slccapplication.id'))
+    application_id=Column(Integer,ForeignKey('slccapplication.id'))
 
     licenses = relationship("SLCCLicense",secondary=functionalities_licenses_correspondance,back_populates='functionalities')
     application=relationship("SLCCApplication", backref="slccfunctionality")
@@ -161,7 +233,9 @@ class SLCCApplication(Base):
     id=Column(Integer,primary_key=True,index=True)
     name=Column(String,unique=False)
     licenceCheckingPeriod=Column(Integer,unique=False)
+    company_id =Column(Integer,ForeignKey('slclient.id'))
 
+    company=relationship("SLClient", backref="slccapplication")
 
 
 # Tokens used for JWT Session tokens => To maintain authenticated user connection
@@ -202,7 +276,6 @@ class PasswordResetTokens(Base):
     is_used = Column(Boolean, default=False)
     
     user = relationship("Users", backref="password_reset_tokens")
-
 
 
 
