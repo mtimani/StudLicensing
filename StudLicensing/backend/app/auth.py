@@ -5,6 +5,7 @@ import os
 import smtplib
 import uuid
 import re
+from logger import logger
 from datetime import timedelta, datetime
 from typing import Annotated, Optional
 from sqlalchemy_imageattach.entity import store_context
@@ -15,7 +16,7 @@ from pydantic import BaseModel, EmailStr, ValidationError, model_validator
 from sqlalchemy.orm import Session
 from starlette import status
 from database import SessionLocal
-from models import Users, UserPicture, SessionTokens, ValidationTokens, PasswordResetTokens, store
+from models import Users, UserPicture, UserTypeEnum, SLAdmin, SessionTokens, ValidationTokens, PasswordResetTokens, store
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
@@ -38,6 +39,9 @@ if not dotenv_path:
 # Retrieve environment variables.
 SECRET_KEY = os.getenv('SECRET_KEY')
 BACKEND_URL = os.getenv('BACKEND_URL', 'localhost:8000')
+SUPERADMIN_ACCOUNT_USERNAME=os.getenv('SUPERADMIN_ACCOUNT_USERNAME')
+SUPERADMIN_ACCOUNT_PASSWORD=os.getenv('SUPERADMIN_ACCOUNT_PASSWORD')
+
 ALGORITHM = "HS256"
 
 # Check that all required variables are set; if any is missing, raise an error.
@@ -45,6 +49,10 @@ if SECRET_KEY is None:
     raise ValueError("Environment variable 'SECRET_KEY' is not defined. Please add it to your .env file.")
 if BACKEND_URL is None:
     raise ValueError("Environment variable 'BACKEND_URL' is not defined. Please add it to your .env file.")
+if SUPERADMIN_ACCOUNT_USERNAME is None:
+    raise ValueError("Environment variable 'SUPERADMIN_ACCOUNT_USERNAME' is not defined. Please add it to your .env file.")
+if SUPERADMIN_ACCOUNT_PASSWORD is None:
+    raise ValueError("Environment variable 'SUPERADMIN_ACCOUNT_PASSWORD' is not defined. Please add it to your .env file.")
 
 
 
@@ -122,7 +130,56 @@ def validate_password_policy(password: str) -> None:
 
 
 # ========================================================
-# classes definition for various routes
+# Create SuperAdmin user function
+# ========================================================
+
+# Helper function to create the SuperAdmin user.
+def create_superadmin():
+    """
+    Creates the SuperAdmin user of StudLincensing.
+    Checks if the user exists. If not the user is created
+    """
+
+    # 1. Establish a local session with the PostgreSQL database
+    db: Session = SessionLocal()
+
+    try:
+        # 2. Check if the superadmin already exists
+        logger.info("Checking if superadmin exists...")
+        existing_admin = db.query(SLAdmin).filter(SLAdmin.username == SUPERADMIN_ACCOUNT_USERNAME).first()
+        if existing_admin:
+            logger.info("Superadmin already exists. No action taken.")
+            return
+
+        # 3. Create the superadmin user if the user does not exist
+        hashed_password = bcrypt_context.hash(SUPERADMIN_ACCOUNT_PASSWORD)
+        superadmin = SLAdmin(
+            username=SUPERADMIN_ACCOUNT_USERNAME,
+            name="Super",
+            surname="Admin",
+            hashedPassword=hashed_password,
+            creationDate=datetime.utcnow(),
+            activated=True,
+            userType=UserTypeEnum.sladmin
+        )
+
+        # 4. Commit the user to the Database
+        db.add(superadmin)
+        db.commit()
+        db.refresh(superadmin)
+        logger.info(f"Superadmin '{SUPERADMIN_ACCOUNT_USERNAME}' created successfully.")
+
+    except Exception as e:
+        db.rollback()
+        logger.error(f"Error creating superadmin: {e}")
+
+    finally:
+        db.close()
+
+
+
+# ========================================================
+# Classes definition for various routes
 # ========================================================
 
 # CreateUserRequest class used for user creation
@@ -212,9 +269,9 @@ def send_validation_email(
             server.starttls()
             server.login(SMTP_USERNAME, SMTP_PASSWORD)
             server.send_message(msg)
-        print(f"Validation email successfully sent to {to_email}")
+        logger.info(f"Validation email successfully sent to {to_email}")
     except Exception as e:
-        print(f"Error sending validation email to {to_email}: {e}")
+        logger.error(f"Error sending validation email to {to_email}: {e}")
 
 # Send password reset email to a user that forgot their password
 def send_password_reset_email(
@@ -260,9 +317,9 @@ def send_password_reset_email(
             server.starttls()
             server.login(SMTP_USERNAME, SMTP_PASSWORD)
             server.send_message(msg)
-        print(f"Password reset email successfully sent to {to_email}")
+        logger.info(f"Password reset email successfully sent to {to_email}")
     except Exception as e:
-        print(f"Error sending password reset email to {to_email}: {e}")
+        logger.error(f"Error sending password reset email to {to_email}: {e}")
 
 
 

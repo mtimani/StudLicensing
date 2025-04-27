@@ -5,11 +5,14 @@
 rm -rf ./.env
 rm -rf ./StudLicensing/backend/app/.env
 
-# Generate a 30-character long random hex string (30 bytes * 2 = 60 characters)
+# Generate a 60-character long random hex string (30 bytes * 2 = 60 characters)
 POSTGRES_PASSWORD=$(openssl rand -hex 30)
 
-# Generate a 60-character long random hex string (60 bytes * 2 = 120 characters)
+# Generate a 120-character long random hex string (60 bytes * 2 = 120 characters)
 SECRET_KEY=$(openssl rand -hex 60)
+
+# Generate a 20-character long random password for the Super Administrator user (10 bytes * 2 = 20 characters)
+SUPERADMIN_ACCOUNT_PASSWORD=$(openssl rand -hex 10)
 
 # Write the environment variables to the .env file
 cat > .env <<EOF
@@ -25,6 +28,8 @@ SMTP_PORT=587
 SMTP_USERNAME=studlicensing@gmail.com
 SMTP_PASSWORD=ENTER_PASSWORD
 FROM_EMAIL=studlicensing@gmail.com
+SUPERADMIN_ACCOUNT_USERNAME=administrator@studlicensing.local
+SUPERADMIN_ACCOUNT_PASSWORD=${SUPERADMIN_ACCOUNT_PASSWORD}
 EOF
 
 echo ".env file created successfully."

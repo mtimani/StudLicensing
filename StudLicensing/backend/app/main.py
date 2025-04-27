@@ -1,6 +1,3 @@
-
-
-
 # ===========================================
 # Imports
 # ===========================================
@@ -15,16 +12,25 @@ if not hasattr(collections, "Iterator"):
 import models
 import auth
 import time
+from logger import logger
 from fastapi import FastAPI, status, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
-from auth import router, get_current_user
+from auth import router, get_current_user, create_superadmin
 from profile import router as profile_router
 from datetime import datetime
 from database import engine, SessionLocal
 from typing import Annotated
 from sqlalchemy.orm import Session
+
+
+
+# ===========================================
+# Logging configuration
+# ===========================================
+logger.info("Starting FastAPI application...")
+
 
 
 # ===========================================
@@ -67,7 +73,6 @@ app = FastAPI()
 
 # Mount the /uploads for static file storage => Profile pictures storage
 app.mount("/uploads", StaticFiles(directory="/uploads"), name="uploads")
-
 
 
 # ===========================================
@@ -146,6 +151,13 @@ def get_db():
 # ===========================================
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
+
+
+
+# ===========================================
+# Generate the SuperAdmin user
+# ===========================================
+create_superadmin()
 
 
 

@@ -1,7 +1,8 @@
 import pytest
+import models
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-import models
+from logger import logger
 
 
 
@@ -15,4 +16,4 @@ def test_db():
     yield session
     session.close()
     Base.metadata.drop_all(bind=engine)
-    print("Tests run complete-----------------------------------------------------------------")
+    logger.info("Tests run complete-----------------------------------------------------------------")

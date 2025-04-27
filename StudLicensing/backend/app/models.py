@@ -7,12 +7,7 @@ from sqlalchemy_imageattach.entity import Image, image_attachment
 from sqlalchemy.orm import relationship
 from sqlalchemy_imageattach.stores.fs import FileSystemStore
 from datetime import datetime
-
-
-
-
 from enum import Enum
-
 
 
 
@@ -30,7 +25,7 @@ store = FileSystemStore(
 # Database models classes declaration
 # ===========================================
 
- # enum to specify user type for class Users
+# Enum to specify user type for class Users
 class UserTypeEnum(str, Enum):
     basic="basic"
     sladmin = "sladmin"
@@ -44,14 +39,12 @@ class UserTypeEnum(str, Enum):
 
 # Many to many relationship tables
 
-
 functionalities_licenses_correspondance = Table(
     "functionalities_licenses",
     Base.metadata,
     Column("slccfunctionality_id", ForeignKey("slccfunctionality.id"), primary_key=True),
     Column("slcclicense_id", ForeignKey("slcclicense.id"), primary_key=True)
 )
-
 
 machines_licenses_correspondance = Table(
     "machines_licenses",
@@ -67,8 +60,6 @@ commercials_licenses_correspondance=Table(
     Column("slcclicense_id", ForeignKey("slcclicense.id"), primary_key=True)
 )
 
-
-
 # Global Users class
 class Users(Base):
     __tablename__='users'
@@ -81,7 +72,7 @@ class Users(Base):
     creationDate = Column(DateTime, nullable=False)
     activated = Column(Boolean, default=False, nullable=False)
     userType=Column(SQLAlchemyEnum(UserTypeEnum), default=UserTypeEnum.basic)
-    profilePicture = image_attachment('UserPicture')    
+    profilePicture = image_attachment('UserPicture', back_populates="user")    
     __mapper_args__ = {
         'polymorphic_identity': UserTypeEnum.basic,
         'polymorphic_on': userType,
@@ -96,7 +87,7 @@ class UserPicture(Base, Image):
     store = store
     
     userId = Column(Integer, ForeignKey('users.id'), primary_key=True)
-    user = relationship('Users')
+    user = relationship('Users', overlaps="profilePicture")
 
 class SLAdmin(Users):
     __tablename__='sladmin'
@@ -106,9 +97,6 @@ class SLAdmin(Users):
     __mapper_args__ = {
         'polymorphic_identity': UserTypeEnum.sladmin,
     }
-     
-
-
 
 class SLClient(Users):
     __tablename__='slclient'
@@ -117,21 +105,7 @@ class SLClient(Users):
     companyName=Column(String,unique=False)
     __mapper_args__ = {
         'polymorphic_identity': UserTypeEnum.slclient,
-    } 
-    
-class SLClientAdmin(Users):
-    __tablename__='slclientadmin'
-
-    id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    company_id =Column(Integer,ForeignKey('slclient.id'))
-
-    company=relationship("SLClient", backref="slclientadmin")
-
-    __mapper_args__ = {
-        'polymorphic_identity': UserTypeEnum.slclientadmin,
     }
-    
-
 
 class SLCClient(Users):
     __tablename__='slcclient'
@@ -139,14 +113,23 @@ class SLCClient(Users):
     id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     company_id =Column(Integer,ForeignKey('slclient.id'))
 
-    company=relationship("SLClient", backref="slcclient")
+    company=relationship("SLClient", backref="slcclient", foreign_keys=[company_id])
 
     __mapper_args__ = {
         'polymorphic_identity': UserTypeEnum.slcclient,
     }
     
-    
-    
+class SLClientAdmin(Users):
+    __tablename__='slclientadmin'
+
+    id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    company_id =Column(Integer,ForeignKey('slclient.id'))
+
+    company=relationship("SLClient", backref="slclientadmin", foreign_keys=[company_id])
+
+    __mapper_args__ = {
+        'polymorphic_identity': UserTypeEnum.slclientadmin,
+    }
 
 class SLCCommercial(Users):
     __tablename__='slccommercial'
@@ -154,7 +137,7 @@ class SLCCommercial(Users):
     id = Column(Integer, ForeignKey("users.id"), primary_key=True) 
     company_id =Column(Integer,ForeignKey('slclient.id'))
 
-    company=relationship("SLClient", backref="slccommercial")
+    company=relationship("SLClient", backref="slccommercial", foreign_keys=[company_id])
     licenses=relationship("SLCCLicense",secondary=commercials_licenses_correspondance,back_populates='commercials')
     __mapper_args__ = {
         'polymorphic_identity': UserTypeEnum.slccommercial,
@@ -166,14 +149,12 @@ class SLCDevelopper(Users):
     id = Column(Integer, ForeignKey("users.id"), primary_key=True) 
     company_id =Column(Integer,ForeignKey('slclient.id'))
 
-    company=relationship("SLClient", backref="slcdevelopper")
+    company=relationship("SLClient", backref="slcdevelopper", foreign_keys=[company_id])
 
 
     __mapper_args__ = {
         'polymorphic_identity': UserTypeEnum.slcdevelopper,
     }
-
-
 
 class SLCCMachine(Base):
     __tablename__='slccmachine'
@@ -188,10 +169,8 @@ class SLCCMachine(Base):
 
     licenses=relationship("SLCCLicense",secondary=machines_licenses_correspondance,back_populates='machines')
 
-
 class LicenseConsumptionType(str, Enum):
     basic="basic"
-    
 
 class SLCCLicense(Base):
     __tablename__='slcclicense'
@@ -214,8 +193,8 @@ class SLCCLicense(Base):
     machines=relationship("SLCCMachine",secondary=machines_licenses_correspondance,back_populates='licenses')  
     
     commercials=relationship("SLCCommercial",secondary=commercials_licenses_correspondance,back_populates='licenses')
-#slccliencence type vs slcclicence use
 
+#slccliencence type vs slcclicence use
 class SLCCFunctionality(Base):
     __tablename__='slccfunctionality'
 
@@ -226,7 +205,6 @@ class SLCCFunctionality(Base):
     licenses = relationship("SLCCLicense",secondary=functionalities_licenses_correspondance,back_populates='functionalities')
     application=relationship("SLCCApplication", backref="slccfunctionality")
 
-
 class SLCCApplication(Base):
     __tablename__="slccapplication"
 
@@ -236,7 +214,6 @@ class SLCCApplication(Base):
     company_id =Column(Integer,ForeignKey('slclient.id'))
 
     company=relationship("SLClient", backref="slccapplication")
-
 
 # Tokens used for JWT Session tokens => To maintain authenticated user connection
 class SessionTokens(Base):
@@ -276,6 +253,3 @@ class PasswordResetTokens(Base):
     is_used = Column(Boolean, default=False)
     
     user = relationship("Users", backref="password_reset_tokens")
-
-
-
