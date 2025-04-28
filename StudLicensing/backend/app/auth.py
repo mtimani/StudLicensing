@@ -5,11 +5,11 @@ import os
 import smtplib
 import uuid
 import re
-from logger import logger
+from logger import logger, login_logger
 from datetime import timedelta, datetime
 from typing import Annotated, Optional
 from sqlalchemy_imageattach.entity import store_context
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Response, status
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request, Response, status
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, EmailStr, ValidationError, model_validator
@@ -753,6 +753,7 @@ async def change_password(
 # Create access token route => POST /auth/token
 @router.post("/token", response_model=Token)
 async def login_for_access_token(
+    request: Request,
     form_data: Annotated[OAuth2PasswordRequestForm, Depends()], 
     db: Session = Depends(get_db)
 ):
@@ -760,14 +761,22 @@ async def login_for_access_token(
     Function allowing to authenticate a user and to generate a JWT for the user that will be used to verify the authentication of the user.
     """
 
-    # 1. Return the user information if the provided login/user information is valid
+    # 1. Get user IP address
+    client_ip = request.headers.get('X-Forwarded-For')
+    if client_ip:
+        client_ip = client_ip.split(',')[0].strip()
+    else:
+        client_ip = request.client.host
+
+    # 2. Return the user information if the provided login/user information is valid
     user = authenticate_user(form_data.username, form_data.password, db)
 
-    # 2. If the provided login/user information is not valid => Throw a non-generic error
+    # 3. If the provided login/user information is not valid => Throw a non-generic error
     if not user:
+        login_logger.warning(f"FAILED login attempt for username: {form_data.username} from IP: {client_ip}")
         raise HTTPException(status_code = status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
     
-    # 3. If the user is valid create a JWT for the user
+    # 4. If the user is valid create a JWT for the user
     access_token = create_access_token(
         user.username, 
         user.id, 
@@ -776,12 +785,16 @@ async def login_for_access_token(
         db
     )
     
-    # 4. return the JWT access token to the user
+    # 5. Log the successful login attempt
+    login_logger.info(f"SUCCESSFUL login for username: {user.username} (user_id: {user.id}) from IP: {client_ip}")
+
+    # 6. return the JWT access token to the user
     return {"access_token": access_token, "token_type": "bearer"}
 
 # Logout a user => POST /auth/logout  
 @router.post("/logout")
 async def logout(
+    request: Request,
     user: dict = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
@@ -789,21 +802,31 @@ async def logout(
     Function allowing to logout a user and to remove the JWT for the logged-out user.
     """
 
-    # 1. Retrieve the unique identifier for the provided JWT
+    # 1. Get user IP address
+    client_ip = request.headers.get('X-Forwarded-For')
+    if client_ip:
+        client_ip = client_ip.split(',')[0].strip()
+    else:
+        client_ip = request.client.host
+
+    # 2. Retrieve the unique identifier for the provided JWT
     jti = user["jti"]
 
-    # 2. Retrieve the session token with the specified unique identifier from the Database
+    # 3. Retrieve the session token with the specified unique identifier from the Database
     session_token = db.query(SessionTokens).filter_by(jti=jti).first()
 
-    # 3. Return an error if the JWT has not been found in the Database
+    # 4. Return an error if the JWT has not been found in the Database
     if not session_token:
         raise HTTPException(status_code=400, detail="Token not found.")
     
-    # 4. Remove the JWT token from the DB if it is expired
+    # 5. Remove the JWT token from the DB if it is expired
     db.delete(session_token)
     db.commit()
 
-    # 5. return a message specifying that the user has been logged out
+    # 6. Log the successful logout of the user
+    login_logger.info(f"SUCCESSFUL logout for username: {user['username']} (user_id: {user['id']}) from IP: {client_ip}")
+
+    # 7. return a message specifying that the user has been logged out
     return {"detail": "Successfully logged out."}
 
 # Delete a user account => DELETE /auth/account_delete
