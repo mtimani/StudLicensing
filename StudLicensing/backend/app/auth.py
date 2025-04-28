@@ -331,6 +331,7 @@ def send_password_reset_email(
 def create_access_token(
     username: str, 
     user_id: int, 
+    user_type: str,
     expires_delta: timedelta, 
     db: Session
 ):
@@ -361,6 +362,7 @@ def create_access_token(
     to_encode = {
         "sub": username,
         "id": user_id,
+        "type": user_type,
         "jti": jti,
         "exp": expire_time
     }
@@ -457,11 +459,12 @@ async def get_current_user(
     # 2. Extract user information from the JWT
     username: str = payload.get("sub")
     user_id: int = payload.get("id")
+    user_type: str = payload.get("type")
     jti: str = payload.get("jti")
     exp: int = payload.get("exp")
 
     # 3. Raise an error if the information contained in the JWT is not valid
-    if not all([username, user_id, jti, exp]):
+    if not all([username, user_id, user_type, jti, exp]):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
 
     # 4. Check if jti (unique token identifier) is in the DB and active, raise an error if the information is invalid
@@ -509,6 +512,7 @@ async def get_current_user(
         new_token_payload = {
             "sub": username,
             "id": user_id,
+            "type": user_type,
             "jti": new_jti,
             "exp": new_exp
         }
@@ -522,7 +526,7 @@ async def get_current_user(
         jti = new_jti
 
     # 15. return the user information to the calling function
-    return {"username": username, "id": user_id, "jti": jti}
+    return {"username": username, "id": user_id, "type": user_type, "jti": jti}
 
 # Check if the provided login/password combination is valid
 def authenticate_user(
@@ -767,6 +771,7 @@ async def login_for_access_token(
     access_token = create_access_token(
         user.username, 
         user.id, 
+        user.userType,
         timedelta(minutes=AUTHENTICATION_TIME), 
         db
     )
