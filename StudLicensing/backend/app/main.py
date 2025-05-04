@@ -73,9 +73,16 @@ wait_for_db()
 app = FastAPI()
 
 # CORS middleware to allow cross-origin requests from localhost:3000
+ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    #"http://<your-public-ip>:3000",
+    #"https://<your-domain>.com",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Only allow your frontend domain
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
     allow_headers=["*"],  # Allow all headers
