@@ -11,6 +11,7 @@ from typing import Annotated, Optional
 from sqlalchemy_imageattach.entity import store_context
 from PIL import Image
 from io import BytesIO
+from logger import logger
 from auth import get_current_user, db_dependency
 from models import Users, UserPicture
 

@@ -16,7 +16,6 @@ from pydantic import BaseModel, EmailStr, ValidationError, model_validator
 from sqlalchemy.orm import Session
 from starlette import status
 from database import SessionLocal
-from models import Users, UserPicture, UserTypeEnum, SLAdmin, SessionTokens, ValidationTokens, PasswordResetTokens, store
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
@@ -24,6 +23,12 @@ from dotenv import find_dotenv
 from PIL import Image
 from io import BytesIO
 from email.message import EmailMessage
+from models import (
+    Users, UserPicture, UserTypeEnum,
+    SLAdmin, SLClient, SLClientAdmin,
+    SLCClient, SLCCommercial, SLCDevelopper,
+    SessionTokens, ValidationTokens, PasswordResetTokens, store
+)
 
 
 
@@ -187,9 +192,10 @@ class CreateUserRequest(BaseModel):
     username: EmailStr
     name: str
     surname: str
-    password: str
-    confirm_password: str
+    user_type: UserTypeEnum
+    company_id: Optional[int] = None # Only relevant if creator is SLAdmin
 
+    """
     # Model validator allowing to check if the password and confirm_password values match, also allows to enforce a strict password policy
     @model_validator(mode="after")
     def check_passwords(cls, model: "CreateUserRequest"):
@@ -207,6 +213,7 @@ class CreateUserRequest(BaseModel):
             )
         
         return model
+    """
 
 # ChangePasswordRequest class used for changing a users' password
 class ChangePasswordRequest(BaseModel):
@@ -257,7 +264,7 @@ def send_validation_email(
     msg['To'] = to_email
     msg.set_content(
         f"Hello,\n\n"
-        f"Please click the link below to validate your email address:\n\n"
+        f"Please click the link below to validate your email address and set your password:\n\n"
         f"{validation_link}\n\n"
         f"This link will expire in 24 hours.\n\n"
         f"Thank you!"
@@ -561,41 +568,147 @@ def authenticate_user(
 # Create user account => POST /auth/account_create
 @router.post("/account_create", status_code=status.HTTP_201_CREATED)
 async def create_user(    
-    username: str = Form(...),
+    username: EmailStr = Form(...),
     name: str = Form(...),
     surname: str = Form(...),
-    password: str = Form(...),
-    confirm_password: str = Form(...),
+    user_type: UserTypeEnum = Form(...),
+    company_id: Optional[int] = Form(None),
     profilePicture: Optional[UploadFile] = File(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
 ):
     """
-    Route that allows to create a user.
+    Create a user account according to role hierarchy.
+    No password is set during account creation; a reset link is emailed.
     """
 
-    # 1. Create a new user instance and validate the input using Pydantic.
-    try:
-        validated_data = CreateUserRequest(
-            username=username,
-            name=name,
-            surname=surname,
-            password=password,
-            confirm_password=confirm_password
-        )
-    except ValidationError as ve:
-        raise RequestValidationError(ve.errors())
-    
-    # 2. Create an instance of the SQLAlchemy Users model with validated data.
-    new_user = Users(
-        username=validated_data.username,
-        name=validated_data.name,
-        surname=validated_data.surname,
-        hashedPassword=bcrypt_context.hash(validated_data.password),
-        creationDate=datetime.utcnow().date(),
-        activated=False
-    )
+    # 1. Get creator information
+    creator_type = current_user["type"]
+    creator_id = current_user["id"]
 
-    # 3. Process the profile picture if provided.
+    # 2. Forbid non-admins from providing company_id
+    if creator_type != UserTypeEnum.sladmin and company_id is not None:
+        logger.warning(f"User of type '{creator_type}' attempted to specify company_id={company_id}, which is forbidden.")
+        raise HTTPException(
+            status_code=400,
+            detail="Account creation forbidden."
+        )
+
+    # 3. Check if creator has permission to create the requested user type
+    allowed = False
+    same_company_required = False
+
+    if creator_type == UserTypeEnum.sladmin:
+        allowed = True
+    elif creator_type == UserTypeEnum.slclientadmin:
+        if user_type in {
+            UserTypeEnum.slclientadmin,
+            UserTypeEnum.slcclient,
+            UserTypeEnum.slccommercial,
+            UserTypeEnum.slcdevelopper,
+        }:
+            allowed = True
+            same_company_required = True
+    elif creator_type in {
+        UserTypeEnum.slccommercial,
+        UserTypeEnum.slcdevelopper,
+    } and user_type == UserTypeEnum.slcclient:
+        allowed = True
+        same_company_required = True
+
+    # 4. Forbid basic account creation
+    if user_type == UserTypeEnum.basic:
+        logger.error("Attempted to create a user of forbidden type 'basic'.")
+        raise HTTPException(
+            status_code=400,
+            detail="Account creation forbidden."
+        )
+
+    # 5. Forbid sladmin account creation if the company id is provided
+    if user_type == UserTypeEnum.sladmin and company_id is not None:
+        logger.error("Attempted to create an 'sladmin' with a company_id, which is not allowed.")
+        raise HTTPException(
+            status_code=400,
+            detail="Account creation forbidden."
+        )
+
+    # 6. Throw error if the creation of account is not possible
+    if not allowed:
+        logger.warning(f"Account creation not allowed: User {current_user['username']} (ID: {current_user['id']}) with account type {creator_type} tried to create a user of type {user_type} for company {company_id}")
+        raise HTTPException(
+            status_code=400,
+            detail="Account creation forbidden."
+        )
+
+    # 7. Determine company_id
+    if creator_type == UserTypeEnum.sladmin:
+        if user_type != UserTypeEnum.sladmin and company_id is None:
+            logger.error("Company ID must be provided by SLAdmin when creating client-related accounts.")
+            raise HTTPException(
+                status_code=400,
+                detail="Account creation forbidden."
+            )
+        company_id = company_id
+    else:
+        # Non-admins should inherit their company_id
+        creator = db.query(Users).filter(Users.id == creator_id).first()
+        if not creator or not hasattr(creator, "company_id") or creator.company_id is None:
+            logger.error("The account trying to create a new account is not associated with a company.")
+            raise HTTPException(
+                status_code=400,
+                detail="Account creation forbidden."
+            )
+        company_id = creator.company_id
+
+    # 8. Check the company_id exists
+    if user_type != UserTypeEnum.sladmin:
+        if not db.query(SLClient).filter(SLClient.id == company_id).first():
+            logger.error(f"Provided company_id {company_id} does not correspond to any SLClient in DB.")
+            raise HTTPException(
+                status_code=400,
+                detail="Account creation forbidden."
+            )
+
+    # 9. Map user type to subclass
+    user_class_map = {
+        UserTypeEnum.sladmin: SLAdmin,
+        UserTypeEnum.slclientadmin: SLClientAdmin,
+        UserTypeEnum.slcclient: SLCClient,
+        UserTypeEnum.slccommercial: SLCCommercial,
+        UserTypeEnum.slcdevelopper: SLCDevelopper,
+    }
+    UserClass = user_class_map.get(user_type)
+    if not UserClass:
+        logger.error("Unsupported user type.")
+        raise HTTPException(
+            status_code=400,
+            detail="Account creation forbidden."
+        )
+
+    # 10. Check if username/email already exists in DB
+    existing_user = db.query(Users).filter(Users.username == username).first()
+    if existing_user:
+        logger.error(f"User with email '{username}' already exists.")
+        raise HTTPException(
+            status_code=400,
+            detail="Account creation forbidden."
+        )
+
+    # 11. Construct user kwargs
+    user_kwargs = {
+        "username": username,
+        "name": name,
+        "surname": surname,
+        "creationDate": datetime.utcnow(),
+        "activated": False,
+        "userType": user_type
+    }
+    if user_type != UserTypeEnum.sladmin:
+        user_kwargs["company_id"] = company_id
+
+    new_user = UserClass(**user_kwargs)
+
+    # 12. Process the profile picture if provided.
     if profilePicture is not None:
         # Check file extension.
         ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
@@ -645,59 +758,69 @@ async def create_user(
         user_picture.store = store
         new_user.profilePicture = [user_picture]
 
-    # 4. Push the new user to the PostgreSQL database
+    # 13. Push the new user to the PostgreSQL database
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    # 6. Create a validation token and store it in the Database
+    # 14. Create a validation token and store it in the Database
     validation_token_str = create_validation_token(db, new_user.id)
     
-    # 7. Send the validation email to the newly created user
+    # 15. Send the validation email to the newly created user
     validation_link = f"http://{BACKEND_URL}/auth/validate_email/{validation_token_str}"
     send_validation_email(new_user.username, validation_link)
 
-    # 8. return the newly created user information to the user
+    # 16. return the newly created user information to the user
     return {"username": new_user.username}
 
 # Validate newly created user email => GET /auth/validate_email/{token}
-@router.get("/validate_email/{token}", status_code=status.HTTP_200_OK)
+@router.post("/validate_email/{token}", status_code=status.HTTP_200_OK)
 async def validate_email(
-    token: str, 
+    token: str,
+    password: str = Form(...),
+    confirm_password: str = Form(...),
     db: Session = Depends(get_db)
 ):
     """
-    Endpoint to validate the account via the token.
+    Validate the user's email and allow them to set their password during the process.
     """
 
-    # 1. Check the database if the email validation provided by the user is valid
+    # 1. If passwords do not match => raise error
+    if password != confirm_password:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match.")
+
+    # 2. Enforce password policy
+    try:
+        validate_password_policy(password)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+    # 3. Retrieve validation token
     validation_record = db.query(ValidationTokens).filter_by(token=token).first()
-
-    # 2. If the validation token is non-existent in the database, return a non-generic error
     if not validation_record:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid validation token.")
+        raise HTTPException(status_code=400, detail="Invalid validation token.")
 
-    # 3. If the validation token is expired, return a non-generic error
     if validation_record.expires_at < datetime.utcnow():
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Validation token has expired.")
+        raise HTTPException(status_code=400, detail="Validation token has expired.")
 
-    # 4. Mark the user as activated in the Database
+    # 4. Retrieve user
     db_user = db.query(Users).filter(Users.id == validation_record.user_id).first()
-
-    # 5. If the user was not found in the database, throw an error
     if not db_user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        raise HTTPException(status_code=404, detail="User not found.")
 
-    # 6. Mark the user as activated in the database
+    # 5. Activate user and set password
     db_user.activated = True
-    
-    # 7. Delete the user validation token and push the user_activated=True in the database
+    db_user.hashedPassword = bcrypt_context.hash(password)
+
+    # 6. Cleanup token
     db.delete(validation_record)
     db.commit()
     db.refresh(db_user)
 
-    # 8. return that the user account has successfully been activated
-    return {"detail": "Email validated successfully. You may now log in."}
+    return {"detail": "Email validated and password set successfully. You may now log in."}
 
 # Change the user password => POST /auth/change_password
 @router.post("/change_password", status_code=status.HTTP_200_OK)
