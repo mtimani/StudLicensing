@@ -7,14 +7,17 @@ services:
     working_dir: /app
     volumes:
       - ./StudLicensing/frontend/app:/app
+      - /app/node_modules
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=development
       - TZ=Europe/Paris
+      - REACT_APP_API_URL=http://localhost:8000
     command: >
       sh -c "npm install && npm start"
-
+    depends_on:
+      - backend
   backend:
     container_name: fastapi-backend
     build:
