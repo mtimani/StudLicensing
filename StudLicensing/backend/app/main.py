@@ -24,6 +24,7 @@ from datetime import datetime
 from database import engine, SessionLocal
 from typing import Annotated
 from sqlalchemy.orm import Session
+from fastapi.middleware.cors import CORSMiddleware
 
 
 
@@ -70,6 +71,15 @@ wait_for_db()
 
 # Create FastAPI application
 app = FastAPI()
+
+# CORS middleware to allow cross-origin requests from localhost:3000
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Only allow your frontend domain
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all HTTP methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
 
 
 # Mount the /uploads for static file storage => Profile pictures storage
