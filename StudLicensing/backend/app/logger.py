@@ -48,13 +48,19 @@ class NonErrorFilter(logging.Filter):
 logger = logging.getLogger("fastapi-backend")
 logger.setLevel(logging.INFO)
 
-# -------- Console Handler (non-error levels) --------
+# -------- Console Handler (non-error levels) ----------
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 console_handler.addFilter(NonErrorFilter())  # Only INFO/WARNING/DEBUG
 logger.addHandler(console_handler)
 
-# -------- File Handler (error levels) --------
+# -------- Console Handler: ERROR, CRITICAL only --------
+error_console_handler = logging.StreamHandler()
+error_console_handler.setFormatter(formatter)
+error_console_handler.addFilter(ErrorFilter())
+logger.addHandler(error_console_handler)
+
+# --------- File Handler: ERROR, CRITICAL only ----------
 error_file_handler = logging.FileHandler(ERROR_LOG_FILE)
 error_file_handler.setFormatter(formatter)
 error_file_handler.addFilter(ErrorFilter())  # Only ERROR/CRITICAL

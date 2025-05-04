@@ -29,7 +29,6 @@ store = FileSystemStore(
 class UserTypeEnum(str, Enum):
     basic="basic"
     sladmin = "sladmin"
-    slclient = "slclient"
     slclientadmin = "slclientadmin"
     slcclient = "slcclient"
     slccommercial = "slccommercial"
@@ -68,7 +67,7 @@ class Users(Base):
     username = Column(String, unique=True, index=True)
     name = Column(String, nullable=False)
     surname = Column(String, nullable=False)
-    hashedPassword = Column(String, nullable=False)
+    hashedPassword = Column(String, nullable=True)
     creationDate = Column(DateTime, nullable=False)
     activated = Column(Boolean, default=False, nullable=False)
     userType=Column(SQLAlchemyEnum(UserTypeEnum), default=UserTypeEnum.basic)
@@ -98,14 +97,11 @@ class SLAdmin(Users):
         'polymorphic_identity': UserTypeEnum.sladmin,
     }
 
-class SLClient(Users):
+class SLClient(Base):
     __tablename__='slclient'
     
-    id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    id = Column(Integer, primary_key=True, index=True)
     companyName=Column(String,unique=False)
-    __mapper_args__ = {
-        'polymorphic_identity': UserTypeEnum.slclient,
-    }
 
 class SLCClient(Users):
     __tablename__='slcclient'
