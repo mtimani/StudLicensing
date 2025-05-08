@@ -105,8 +105,6 @@ class SLAdmin(Users):
         'polymorphic_identity': UserTypeEnum.sladmin,
     }
 
-
-
 class SLCClient(Users):
     __tablename__='slcclient'
 

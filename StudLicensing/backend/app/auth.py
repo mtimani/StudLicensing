@@ -619,8 +619,26 @@ async def create_user(
             status_code=400,
             detail="Account creation forbidden."
         )
-
-    # 7. Determine company_id
+        
+    # 7. Check if SLCClient user already exists => update company table correspondance to add user to a new company
+    if user_type == UserTypeEnum.slcclient:
+        existing_client = db.query(SLCClient).filter(SLCClient.username == username).first()
+        if existing_client:
+            # Update the companies field without sending validation email
+            if company_id:
+                company = db.query(SLClient).filter(SLClient.id == company_id).first()
+                if not company:
+                    logger.error(f"Provided company_id {company_id} does not correspond to any SLClient in DB.")
+                    raise HTTPException(
+                        status_code=400, 
+                        detail="Account creation forbidden."
+                    )
+                if company not in existing_client.companies:
+                    existing_client.companies.append(company)
+                    db.commit()
+                return {"detail": "SLCClient company associations updated successfully."}
+    
+    # 8. Determine company_id
     if creator_type == UserTypeEnum.sladmin:
         if user_type != UserTypeEnum.sladmin and company_id is None:
             logger.error("Company ID must be provided by SLAdmin when creating client-related accounts.")
@@ -640,7 +658,7 @@ async def create_user(
             )
         company_id = creator.company_id
 
-    # 8. Check the company_id exists
+    # 9. Check the company_id exists
     if user_type != UserTypeEnum.sladmin:
         if not db.query(SLClient).filter(SLClient.id == company_id).first():
             logger.error(f"Provided company_id {company_id} does not correspond to any SLClient in DB.")
@@ -649,7 +667,7 @@ async def create_user(
                 detail="Account creation forbidden."
             )
 
-    # 9. Map user type to subclass
+    # 10. Map user type to subclass
     user_class_map = {
         UserTypeEnum.sladmin: SLAdmin,
         UserTypeEnum.slclientadmin: SLClientAdmin,
@@ -665,7 +683,7 @@ async def create_user(
             detail="Account creation forbidden."
         )
 
-    # 10. Check if username/email already exists in DB
+    # 11. Check if username/email already exists in DB
     existing_user = db.query(Users).filter(Users.username == username).first()
     if existing_user:
         logger.error(f"User with email '{username}' already exists.")
@@ -674,7 +692,7 @@ async def create_user(
             detail="Account creation forbidden."
         )
 
-    # 11. Construct user kwargs
+    # 12. Construct user kwargs
     user_kwargs = {
         "username": username,
         "name": name,
@@ -683,12 +701,23 @@ async def create_user(
         "activated": False,
         "userType": user_type
     }
-    if user_type != UserTypeEnum.sladmin:
+    if user_type not in {UserTypeEnum.sladmin, UserTypeEnum.slcclient}:
         user_kwargs["company_id"] = company_id
+
+    # 13. For new SLCClient, associate the company
+    if user_type == UserTypeEnum.slcclient and company_id:
+        company = db.query(SLClient).filter(SLClient.id == company_id).first()
+        if not company:
+            logger.error(f"Provided company_id {company_id} does not correspond to any SLClient in DB.")
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid company ID."
+            )
+        user_kwargs["companies"] = [company]
 
     new_user = UserClass(**user_kwargs)
 
-    # 12. Process the profile picture if provided.
+    # 14. Process the profile picture if provided.
     if profilePicture is not None:
         # Check file extension.
         ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
@@ -738,19 +767,19 @@ async def create_user(
         user_picture.store = store
         new_user.profilePicture = [user_picture]
 
-    # 13. Push the new user to the PostgreSQL database
+    # 15. Push the new user to the PostgreSQL database
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
 
-    # 14. Create a validation token and store it in the Database
+    # 16. Create a validation token and store it in the Database
     validation_token_str = create_validation_token(db, new_user.id)
     
-    # 15. Send the validation email to the newly created user
+    # 17. Send the validation email to the newly created user
     validation_link = f"http://{BACKEND_URL}/auth/validate_email/{validation_token_str}"
     send_validation_email(new_user.username, validation_link)
 
-    # 16. return the newly created user information to the user
+    # 18. return the newly created user information to the user
     return {"username": new_user.username}
 
 # Validate newly created user email => GET /auth/validate_email/{token}
