@@ -78,9 +78,14 @@ def get_profile_info(
 
     # 2. Raise error if user not found
     if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
+        logger.error(f'The user {current_user["username"]} has not been found.')
+        raise HTTPException(
+            status_code=404, 
+            detail="User not found"
+        )
 
     # 3. Return the user profile information found in the database
+    logger.info(f'Successfully retrieved profile information for user {current_user["username"]}')
     return {
         "username": db_user.username,
         "name": db_user.name,
@@ -104,7 +109,11 @@ def update_profile_info(
 
     # 2. Raise error if user not found
     if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
+        logger.error(f'The user {current_user["username"]} has not been found.')
+        raise HTTPException(
+            status_code=404, 
+            detail="User not found"
+        )
 
     # 3. Update fields if they are provided
     if update_data.name is not None:
@@ -118,6 +127,7 @@ def update_profile_info(
     db.refresh(db_user)
 
     # 5. Return to the user the updated values of profile information
+    logger.info(f'Successfully updated profile information for user {current_user["username"]}')
     return {
         "detail": "Profile updated successfully",
         "user": {
@@ -143,14 +153,22 @@ def get_profile_picture(
 
     # 2. Raise error if user not found
     if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
+        logger.error(f'The user {current_user["username"]} has not been found.')
+        raise HTTPException(
+            status_code=404, 
+            detail="User not found"
+        )
 
     # 3. Convert the dynamic relationship to a list so we can safely check
     pictures = list(db_user.profilePicture)
 
     # 4. Raise error if the profile picture not found
     if not pictures:
-        raise HTTPException(status_code=404, detail="No profile picture found.")
+        logger.error(f'No profile picture found for the user {current_user["username"]}.')
+        raise HTTPException(
+            status_code=404, 
+            detail="No profile picture found."
+        )
 
     # 5. Extract the picture and open the picture from the store (located in /uploads)
     pic = pictures[0]
@@ -161,6 +179,7 @@ def get_profile_picture(
     mimetype = pic.mimetype or "application/octet-stream"
 
     # 7. Return the image content to the user making the request
+    logger.info(f'Successfully retrieved profile picture for user {current_user["username"]}')
     return Response(content=image_bytes, media_type=mimetype)
 
 # Update profile picture route => PUT /profile/picture
@@ -180,7 +199,11 @@ async def update_profile_picture(
 
     # 2. Raise error if user not found
     if not db_user:
-        raise HTTPException(status_code=404, detail="User not found")
+        logger.error(f'The user {current_user["username"]} has not been found.')
+        raise HTTPException(
+            status_code=404, 
+            detail="User not found"
+        )
 
     # 3. Validate the new image
     profilePicture = new_picture
@@ -189,7 +212,11 @@ async def update_profile_picture(
         ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
         ext = os.path.splitext(profilePicture.filename)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
-            raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
+            logger.error("The uploaded file is not a valid image.")
+            raise HTTPException(
+                status_code=400, 
+                detail="Uploaded file is not a valid image."
+            )
         
         # Check content type.
         ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif"}
@@ -201,6 +228,7 @@ async def update_profile_picture(
             elif ext == ".png":
                 mimetype = "image/png"
             else:
+                logger.error("The uploaded file is not a valid image.")
                 raise HTTPException(
                     status_code=400,
                     detail="Uploaded file is not a valid image."
@@ -219,10 +247,18 @@ async def update_profile_picture(
         bytes_io.seek(0)
         image = Image.open(bytes_io)
         if image.format not in {"JPEG", "PNG"}:
-            raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
+            logger.error("The uploaded file is not a valid image.")
+            raise HTTPException(
+                status_code=400,
+                detail="Uploaded file is not a valid image."
+            )
         width, height = image.size
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Uploaded file is not a valid image.")
+        logger.error("The uploaded file is not a valid image.")
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file is not a valid image."
+        )
 
     # 5. Remove the old picture (if any) inside a store_context
     from sqlalchemy_imageattach.entity import store_context
@@ -249,4 +285,5 @@ async def update_profile_picture(
         db.refresh(db_user)
 
     # 8. Inform the user that the profile picture was successfully updated
+    logger.info(f'Successfully updated the profile picture for user {current_user["username"]}')
     return {"detail": "Profile picture updated successfully."}

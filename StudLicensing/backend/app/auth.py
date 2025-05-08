@@ -356,6 +356,7 @@ def create_access_token(
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
     # 6. return the token to the calling function
+    logger.info(f'A session token has been issued for the user with the ID = {user_id}')
     return encoded_jwt
 
 # Create email validation token
@@ -388,6 +389,7 @@ def create_validation_token(
     db.refresh(validation_record)
 
     # 5. return the token to the calling function
+    logger.info(f'A validation token has been issued for the user with the ID = {user_id}')
     return token_str
 
 # Create a password reset token
@@ -420,6 +422,7 @@ def create_password_reset_token(
     db.refresh(reset_record)
 
     # 5. return the token to the calling function
+    logger.info(f'A password reset token has been issued for the user with the ID = {user_id}')
     return token_str
 
 
@@ -441,6 +444,7 @@ async def get_current_user(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
+        logger.error("User with invalid JWT tried to connect.")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
 
     # 2. Extract user information from the JWT
@@ -452,11 +456,13 @@ async def get_current_user(
 
     # 3. Raise an error if the information contained in the JWT is not valid
     if not all([username, user_id, user_type, jti, exp]):
+        logger.error("The information contained in the provided JWT is not valid. The signature of the JWT is valid.")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
 
     # 4. Check if jti (unique token identifier) is in the DB and active, raise an error if the information is invalid
     session_token = db.query(SessionTokens).filter_by(jti=jti).first()
     if not session_token or not session_token.is_active:
+        logger.error("The JTI provided in the JWT token does not correspond to any active session_token.")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
 
     # 5. Check if the JWT token is expired
@@ -466,6 +472,7 @@ async def get_current_user(
         db.commit()
 
         # Raise an error if the JWT token is expired
+        logger.error("The JWT token has expired.")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid user.")
 
     # 6. Check if user activated (if the email address of the user has been validated)
@@ -473,10 +480,12 @@ async def get_current_user(
 
     # 7. Raise error if the user is not in the database
     if not db_user:
+        logger.error("The user ID provided in the JWT does not correspond to any user ID in the database.")
         raise HTTPException(status_code=404, detail="Invalid user.")
 
     # 8. Raise an error if the users' email address has not been validated and inform the user with a non-generic error
     if not db_user.activated:
+        logger.error("The user trying to login did not yet validate the email address and set a password.")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Please validate your email address first."
@@ -568,7 +577,7 @@ async def create_user(
 
     # 2. Forbid non-admins from providing company_id
     if creator_type != UserTypeEnum.sladmin and company_id is not None:
-        logger.warning(f"User of type '{creator_type}' attempted to specify company_id={company_id}, which is forbidden.")
+        logger.error(f"User of type '{creator_type}' attempted to specify company_id={company_id}, which is forbidden.")
         raise HTTPException(
             status_code=400,
             detail="Account creation forbidden."
@@ -636,6 +645,7 @@ async def create_user(
                 if company not in existing_client.companies:
                     existing_client.companies.append(company)
                     db.commit()
+                logger.info(f"The new company {company_id} has been added for user {username}")
                 return {"detail": "SLCClient company associations updated successfully."}
     
     # 8. Determine company_id
@@ -723,6 +733,7 @@ async def create_user(
         ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
         ext = os.path.splitext(profilePicture.filename)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
+            logger.error("Uploaded file is not a valid image.")
             raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
         
         # Check content type.
@@ -735,6 +746,7 @@ async def create_user(
             elif ext == ".png":
                 mimetype = "image/png"
             else:
+                logger.error("Uploaded file is not a valid image.")
                 raise HTTPException(
                     status_code=400,
                     detail="Uploaded file is not a valid image."
@@ -753,9 +765,11 @@ async def create_user(
             bytes_io.seek(0)
             image = Image.open(bytes_io)
             if image.format not in {"JPEG", "PNG"}:
+                logger.error("Uploaded file is not a valid image.")
                 raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
             width, height = image.size
         except Exception as e:
+            logger.error("Uploaded file is not a valid image.")
             raise HTTPException(status_code=400, detail=f"Uploaded file is not a valid image.")
         
         # Create UserPicture instance
@@ -780,6 +794,7 @@ async def create_user(
     send_validation_email(new_user.username, validation_link)
 
     # 18. return the newly created user information to the user
+    logger.info(f"The user {new_user.username} has been successfully created.")
     return {"username": new_user.username}
 
 # Validate newly created user email => GET /auth/validate_email/{token}
@@ -796,6 +811,7 @@ async def validate_email(
 
     # 1. If passwords do not match => raise error
     if password != confirm_password:
+        logger.error("Provided passwords do not match.")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match.")
 
     # 2. Enforce password policy
@@ -810,14 +826,17 @@ async def validate_email(
     # 3. Retrieve validation token
     validation_record = db.query(ValidationTokens).filter_by(token=token).first()
     if not validation_record:
+        logger.error("The validation token is invalid.")
         raise HTTPException(status_code=400, detail="Invalid validation token.")
 
     if validation_record.expires_at < datetime.utcnow():
+        logger.error("The validation token has expired.")
         raise HTTPException(status_code=400, detail="Validation token has expired.")
 
     # 4. Retrieve user
     db_user = db.query(Users).filter(Users.id == validation_record.user_id).first()
     if not db_user:
+        logger.error("The user associated to the validation token record cannot be found.")
         raise HTTPException(status_code=404, detail="User not found.")
 
     # 5. Activate user and set password
@@ -829,6 +848,7 @@ async def validate_email(
     db.commit()
     db.refresh(db_user)
 
+    logger.info(f'Email validated and password set successfully for user with id {validation_record.user_id}.')
     return {"detail": "Email validated and password set successfully. You may now log in."}
 
 # Change the user password => POST /auth/change_password
@@ -855,20 +875,24 @@ async def change_password(
     
     # 3. If the user was not found in the database, throw an error
     if not db_user:
+        logger.error(f'User {current_user["username"]} does not exist.')
         raise HTTPException(status_code=404, detail="User not found.")
 
     # 4. Check if old password is correct
     if not bcrypt_context.verify(data.old_password, db_user.hashedPassword):
+        logger.error(f'The old password provided for the user {current_user["username"]} is incorrect.')
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Old password is incorrect.")
 
     # 5. Check if the new password is the same as the old password
     if data.old_password == data.new_password:
+        logger.error(f'The new password must be different from the old password provided for the user {current_user["username"]}.')
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be different from the old password.")
 
     # 6. Enforce the password policy on the new password.
     try:
         validate_password_policy(data.new_password)
     except ValueError as e:
+        logger.error(f'The new password policy is not respected for the provided password for the user {current_user["username"]}.')
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -880,6 +904,7 @@ async def change_password(
     db.refresh(db_user)
 
     # 8. return an explicit message that the password change has been successful for the user
+    logger.info(f'Password modified successfully for user {current_user["username"]}.')
     return {"detail": "Password changed successfully."}
 
 # Create access token route => POST /auth/token
@@ -949,6 +974,7 @@ async def logout(
 
     # 4. Return an error if the JWT has not been found in the Database
     if not session_token:
+        logger.error("The JWT token provided in the request does not have an associated session_token record.")
         raise HTTPException(status_code=400, detail="Token not found.")
     
     # 5. Remove the JWT token from the DB if it is expired
@@ -979,6 +1005,7 @@ async def delete_account(
 
     # 3. Raise an error if the user has not been found in the database
     if not db_user:
+        logger.error(f'The user {current_user["username"]} cannot be found in the database.')
         raise HTTPException(status_code=404, detail="User not found.")
 
     # 4. Remove session tokens manually
@@ -999,6 +1026,7 @@ async def delete_account(
         db.commit()
 
     # 8. return a message specifying that the user has been deleted successfully
+    logger.info(f'The user {current_user["username"]} has been successfully deleted.')
     return {"detail": "Account deleted successfully."}
 
 # Forgot password route => POST /auth/forgot_password
@@ -1025,6 +1053,9 @@ async def forgot_password(
         # Send the password reset token to the user
         reset_link = f"http://{BACKEND_URL}/auth/reset_password/{reset_token}"
         send_password_reset_email(user.username, reset_link)
+        logger.info(f'Password reset token has been sent to the user {user.username}.')
+    else:
+        logger.error(f'The user {user.username} does not exist, the password reset link has not been sent.')
     
     # 3. Always return the same generic message to avoid user enumeration
     return {"detail": "If an account with that email exists, a password reset link has been sent."}
@@ -1044,6 +1075,7 @@ async def reset_password(
 
     # 1. If the new_password does not match the confirm_password => throw a non-generic error
     if new_password != confirm_password:
+        logger.error("The provided passwords do not match")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match.")
 
     # 2. Query the database to retrieve the reset_record with the provided password reset token
@@ -1051,16 +1083,19 @@ async def reset_password(
 
     # 3. If the password reset token does not exist in the Database => throw a non-generic error
     if not reset_record:
+        logger.error("The provided password_reset token does not exist in the database.")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid password reset token.")
 
     # 4. If the password reset token is expired => throw a non-generic error
     if reset_record.expires_at < datetime.utcnow():
+        logger.error("The provided password_reset token has expired.")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password reset token has expired.")
 
     # 5. Enforce the password policy on the new password.
     try:
         validate_password_policy(new_password)
     except ValueError as e:
+        logger.error("The provided passwords do not respect the enforced password policy.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -1071,6 +1106,7 @@ async def reset_password(
 
     # 7. If the user associated with the provided password reset token is not found => throw a non-generic error
     if not user:
+        logger.error("The user associated with the provided password reset token cannot be found in the database.")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
 
     # 8. Update the user's password and remove the password reset token entry from the database
@@ -1079,4 +1115,5 @@ async def reset_password(
     db.commit()
 
     # 9. Return a meessage specifying that the users' password has been successfully reset
+    logger.info(f'The password of the user with the ID = {reset_record.user_id} has successfully been reset.')
     return {"detail": "Password has been reset successfully."}

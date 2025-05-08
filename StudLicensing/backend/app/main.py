@@ -60,6 +60,7 @@ def wait_for_db(
             return
         except Exception as e:
             time.sleep(interval)
+    logger.error("Could not connect to the database within the timeout period.")
     raise Exception("Could not connect to the database within the timeout period.")
 
 # Wait for the DB before proceeding with models creation
@@ -74,6 +75,7 @@ wait_for_db()
 # Load environment variables
 dotenv_path = find_dotenv()
 if not dotenv_path:
+    logger.error("'.env' file not found. Please make sure the file exists in the project directory.")
     raise FileNotFoundError("'.env' file not found. Please make sure the file exists in the project directory.")
 
 # Retrieve environment variables.
@@ -211,5 +213,6 @@ async def user(
     db: db_dependency
 ):
     if user is None:
+        logger.info("Authentication Failed")
         raise HTTPException(status_code=401, detail='Authentication Failed')
     return {"User": user}

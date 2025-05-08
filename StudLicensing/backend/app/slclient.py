@@ -80,7 +80,10 @@ def create_slclient(
     # 1. Check that the user is an SLAdmin
     if current_user["type"] != UserTypeEnum.sladmin:
         logger.error("Only SLAdmin users can create SLClients.")
-        raise HTTPException(status_code=403, detail="Error creating client.")
+        raise HTTPException(
+            status_code=403, 
+            detail="Error creating client."
+        )
 
     # 2. Create and add the new SLClient to the database
     new_client = SLClient(companyName=client_data.companyName)
@@ -106,13 +109,19 @@ def delete_slclient(
     # 1. Check that the user is an SLAdmin
     if current_user["type"] != UserTypeEnum.sladmin:
         logger.error("Only SLAdmin users can delete SLClients.")
-        raise HTTPException(status_code=403, detail="Error deleting client.")
+        raise HTTPException(
+            status_code=403, 
+            detail="Error deleting client."
+        )
 
     # 2. Find the SLClient in the database
     client = db.query(SLClient).filter(SLClient.id == client_id).first()
     if not client:
         logger.error(f"SLClients {client_id} does not exist.")
-        raise HTTPException(status_code=403, detail="Error deleting client.")
+        raise HTTPException(
+            status_code=403,
+            detail="Error deleting client."
+        )
 
     # 3. Delete the SLClient
     db.delete(client)
@@ -139,7 +148,10 @@ def update_slclient(
     client = db.query(SLClient).filter(SLClient.id == client_id).first()
     if not client:
         logger.error(f"SLClients {client_id} does not exist.")
-        raise HTTPException(status_code=403, detail="Error modifying client.")
+        raise HTTPException(
+            status_code=403, 
+            detail="Error modifying client."
+        )
 
     # 2. Check if current user is authorized to update this client
     if current_user["type"] == UserTypeEnum.sladmin:
@@ -149,10 +161,16 @@ def update_slclient(
         user = db.query(Users).filter(Users.id == current_user["id"]).first()
         if not user or getattr(user, "company_id", None) != client_id:
             logger.error(f"User {current_user['name']} of type {current_user['type']} tried to modify SLClient {client_id} from another company.")
-            raise HTTPException(status_code=403, detail="Error modifying client.")
+            raise HTTPException(
+                status_code=403, 
+                detail="Error modifying client."
+            )
     else:
-        logger.error("No permission to update this SLClient.")
-        raise HTTPException(status_code=403, detail="Error modifying client.")
+        logger.error(f'User {current_user["username"]} of type {current_user["type"]} tried to update the SLClient {client_id}.')
+        raise HTTPException(
+            status_code=403, 
+            detail="Error modifying client."
+        )
 
     # 4. Apply updates
     if client_data.companyName is not None:
