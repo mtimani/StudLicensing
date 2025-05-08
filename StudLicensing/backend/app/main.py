@@ -12,6 +12,7 @@ if not hasattr(collections, "Iterator"):
 import models
 import auth
 import time
+import os
 from logger import logger
 from fastapi import FastAPI, status, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
