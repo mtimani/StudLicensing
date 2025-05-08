@@ -158,7 +158,7 @@ class SLClient(Base):
     __tablename__='slclient'
     
     id = Column(Integer, primary_key=True, index=True)
-    companyName=Column(String,unique=False)
+    companyName=Column(String, unique=False)
     
     clients=relationship("SLCClient",secondary=companies_clients_correspondance,back_populates='companies')
 

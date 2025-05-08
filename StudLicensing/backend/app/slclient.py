@@ -47,7 +47,7 @@ db_dependency = Annotated[Session, Depends(get_db)]
 
 # SLClientCreateModel class for creating a new SLClient
 class SLClientCreateModel(BaseModel):
-    companyName: str = Field(..., max_length=100)
+    companyName: str = Field(..., min_length=3, max_length=100)
 
     @classmethod
     def as_form(cls, companyName: str = Form(...)):
@@ -55,7 +55,7 @@ class SLClientCreateModel(BaseModel):
 
 # SLClientUpdateModel class for updating an existing SLClient
 class SLClientUpdateModel(BaseModel):
-    companyName: Optional[str] = Field(None, max_length=100)
+    companyName: Optional[str] = Field(None, min_length=3, max_length=100)
 
     @classmethod
     def as_form(cls, companyName: Optional[str] = Form(None)):
