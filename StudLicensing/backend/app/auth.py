@@ -195,26 +195,6 @@ class CreateUserRequest(BaseModel):
     user_type: UserTypeEnum
     company_id: Optional[int] = None # Only relevant if creator is SLAdmin
 
-    """
-    # Model validator allowing to check if the password and confirm_password values match, also allows to enforce a strict password policy
-    @model_validator(mode="after")
-    def check_passwords(cls, model: "CreateUserRequest"):
-        # Check if both password fields match.
-        if model.password != model.confirm_password:
-            raise ValueError("Passwords do not match.")
-        
-        # Enforce the password policy on the new password.
-        try:
-            validate_password_policy(model.password)
-        except ValueError as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e)
-            )
-        
-        return model
-    """
-
 # ChangePasswordRequest class used for changing a users' password
 class ChangePasswordRequest(BaseModel):
     old_password: str
