@@ -23,6 +23,7 @@ from slclient import router as slclient_router
 from datetime import datetime
 from database import engine, SessionLocal
 from typing import Annotated
+from dotenv import find_dotenv
 from sqlalchemy.orm import Session
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -65,6 +66,20 @@ wait_for_db()
 
 
 
+# ========================================================
+# Environment variables
+# ========================================================
+
+# Load environment variables
+dotenv_path = find_dotenv()
+if not dotenv_path:
+    raise FileNotFoundError("'.env' file not found. Please make sure the file exists in the project directory.")
+
+# Retrieve environment variables.
+PRIVATE_IP = os.getenv('PRIVATE_IP')
+
+
+
 # ===========================================
 # FastAPI application creation
 # ===========================================
@@ -76,9 +91,11 @@ app = FastAPI()
 ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
-    #"http://<your-public-ip>:3000",
-    #"https://<your-domain>.com",
 ]
+
+# Dynamically add the private IP to the allowed origins
+if PRIVATE_IP:
+    ALLOWED_ORIGINS.append(f"http://{PRIVATE_IP}:3000")
 
 app.add_middleware(
     CORSMiddleware,

@@ -14,6 +14,9 @@ SECRET_KEY=$(openssl rand -hex 60)
 # Generate a 20-character long random password for the Super Administrator user (10 bytes * 2 = 20 characters)
 SUPERADMIN_ACCOUNT_PASSWORD=$(openssl rand -hex 10)
 
+# Get the private IP address using the `ip` command
+PRIVATE_IP=$(ip addr show | grep "inet " | grep -v "127.0.0.1" | awk '{print $2}' | cut -d'/' -f1 | head -n 1)
+
 # Write the environment variables to the .env file
 cat > .env <<EOF
 POSTGRES_USER=StudLicensingUser
@@ -31,6 +34,14 @@ FROM_EMAIL=studlicensing@gmail.com
 SUPERADMIN_ACCOUNT_USERNAME=administrator@studlicensing.local
 SUPERADMIN_ACCOUNT_PASSWORD=${SUPERADMIN_ACCOUNT_PASSWORD}
 EOF
+
+# If PRIVATE_IP is not empty, append it to the .env file
+if [ -n "$PRIVATE_IP" ]; then
+    echo "PRIVATE_IP=${PRIVATE_IP}" >> .env
+    echo "PRIVATE_IP added to .env."
+else
+    echo "No private IP address found. PRIVATE_IP variable not added."
+fi
 
 echo ".env file created successfully."
 
