@@ -28,11 +28,11 @@ store = FileSystemStore(
 # Enum to specify user type for class Users
 class UserTypeEnum(str, Enum):
     basic="basic"
-    sladmin = "sladmin"
-    slclientadmin = "slclientadmin"
-    slcclient = "slcclient"
-    slccommercial = "slccommercial"
-    slcdevelopper = "slcdevelopper"
+    admin = "admin"
+    company_admin = "company_admin"
+    company_client = "company_client"
+    company_commercial = "company_commercial"
+    company_developper = "company_developper"
 
 
 
@@ -41,30 +41,30 @@ class UserTypeEnum(str, Enum):
 functionalities_licenses_correspondance = Table(
     "functionalities_licenses",
     Base.metadata,
-    Column("slccfunctionality_id", ForeignKey("slccfunctionality.id"), primary_key=True),
-    Column("slclicense_id", ForeignKey("slclicense.id"), primary_key=True)
+    Column("functionality_id", ForeignKey("functionality.id"), primary_key=True),
+    Column("license_id", ForeignKey("license.id"), primary_key=True)
 )
 
 machines_licenses_correspondance = Table(
     "machines_licenses",
     Base.metadata,
-    Column("slccmachine_id", ForeignKey("slccmachine.id"), primary_key=True),
-    Column("slcclicense_id", ForeignKey("slcclicense.id"), primary_key=True)
+    Column("machine_id", ForeignKey("machine.id"), primary_key=True),
+    Column("license_id", ForeignKey("license.id"), primary_key=True)
 )
 
 commercials_licenses_correspondance=Table(
     "commercials_licenses",
     Base.metadata,
-    Column("slccommercial_id", ForeignKey("slccommercial.id"), primary_key=True),
-    Column("slclicense_id", ForeignKey("slclicense.id"), primary_key=True)
+    Column("company_commercial_id", ForeignKey("company_commercial.id"), primary_key=True),
+    Column("license_id", ForeignKey("license.id"), primary_key=True)
 )
 
 
 companies_clients_correspondance=Table(
     "companies_clients",
     Base.metadata,
-    Column("slclient_id", ForeignKey("slclient.id"), primary_key=True),
-    Column("slcclient_id", ForeignKey("slcclient.id"), primary_key=True)
+    Column("company_id", ForeignKey("company.id"), primary_key=True),
+    Column("company_client_id", ForeignKey("company_client.id"), primary_key=True)
 )
 
 # Global Users class
@@ -96,138 +96,138 @@ class UserPicture(Base, Image):
     userId = Column(Integer, ForeignKey('users.id'), primary_key=True)
     user = relationship('Users', overlaps="profilePicture")
 
-class SLAdmin(Users):
-    __tablename__='sladmin'
+class Admin(Users):
+    __tablename__='admin'
 
     id = Column(Integer, ForeignKey("users.id"), primary_key=True)
 
     __mapper_args__ = {
-        'polymorphic_identity': UserTypeEnum.sladmin,
+        'polymorphic_identity': UserTypeEnum.admin,
     }
 
-class SLCClient(Users):
-    __tablename__='slcclient'
+class CompanyClient(Users):
+    __tablename__='company_client'
 
     id = Column(Integer, ForeignKey("users.id"), primary_key=True)
 
-    companies=relationship("SLClient",secondary=companies_clients_correspondance,back_populates='clients')
+    companies=relationship("Company",secondary=companies_clients_correspondance,back_populates='clients')
     __mapper_args__ = {
-        'polymorphic_identity': UserTypeEnum.slcclient,
+        'polymorphic_identity': UserTypeEnum.company_client,
     }
     
-class SLClientAdmin(Users):
-    __tablename__='slclientadmin'
+class CompanyAdmin(Users):
+    __tablename__='company_admin'
 
     id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    company_id =Column(Integer,ForeignKey('slclient.id'))
+    company_id =Column(Integer,ForeignKey('company.id'))
 
-    company=relationship("SLClient", backref="slclientadmin", foreign_keys=[company_id])
+    company=relationship("Company", backref="companyadmin", foreign_keys=[company_id])
 
     __mapper_args__ = {
-        'polymorphic_identity': UserTypeEnum.slclientadmin,
+        'polymorphic_identity': UserTypeEnum.company_admin,
     }
 
-class SLCCommercial(Users):
-    __tablename__='slccommercial'
+class CompanyCommercial(Users):
+    __tablename__='company_commercial'
 
     id = Column(Integer, ForeignKey("users.id"), primary_key=True) 
-    company_id =Column(Integer,ForeignKey('slclient.id'))
+    company_id =Column(Integer,ForeignKey('company.id'))
 
-    company=relationship("SLClient", backref="slccommercial", foreign_keys=[company_id])
-    licenses=relationship("SLCLicense",secondary=commercials_licenses_correspondance,back_populates='commercials')
+    company=relationship("Company", backref="company_commercial", foreign_keys=[company_id])
+    licenses=relationship("License",secondary=commercials_licenses_correspondance,back_populates='commercials')
     __mapper_args__ = {
-        'polymorphic_identity': UserTypeEnum.slccommercial,
+        'polymorphic_identity': UserTypeEnum.company_commercial,
     }
 
-class SLCDevelopper(Users):
-    __tablename__='slcdevelopper'
+class CompanyDevelopper(Users):
+    __tablename__='company_developper'
 
     id = Column(Integer, ForeignKey("users.id"), primary_key=True) 
-    company_id =Column(Integer,ForeignKey('slclient.id'))
+    company_id =Column(Integer,ForeignKey('company.id'))
 
-    company=relationship("SLClient", backref="slcdevelopper", foreign_keys=[company_id])
+    company=relationship("Company", backref="company_developper", foreign_keys=[company_id])
 
 
     __mapper_args__ = {
-        'polymorphic_identity': UserTypeEnum.slcdevelopper,
+        'polymorphic_identity': UserTypeEnum.company_developper,
     }
 
-class SLClient(Base):
-    __tablename__='slclient'
+class Company(Base):
+    __tablename__='company'
     
     id = Column(Integer, primary_key=True, index=True)
     companyName=Column(String, unique=False)
     
-    clients=relationship("SLCClient",secondary=companies_clients_correspondance,back_populates='companies')
+    clients=relationship("CompanyClient",secondary=companies_clients_correspondance,back_populates='companies')
 
 
 
-class SLCCMachine(Base):
-    __tablename__='slccmachine'
+class Machine(Base):
+    __tablename__='machine'
 
     id=Column(Integer,primary_key=True,index=True)
     macAddress=Column(String,unique=False)
     cpuId=Column(String,unique=False)
     hasLicenseActivated=Column(Boolean,unique=False)
-    licenseUsed=Column(Integer,ForeignKey('slcclicense.id'))
+    licenseUsed=Column(Integer,ForeignKey('license.id'))
     lastVerificationPassed=Column(Date,unique=False)
     lastVerificationTry=Column(Date,unique=False)
 
-    licenses=relationship("SLCCLicense",secondary=machines_licenses_correspondance,back_populates='machines')
+    licenses=relationship("License",secondary=machines_licenses_correspondance,back_populates='machines')
 
 class LicenseConsumptionType(str, Enum):
     basic="basic"
 
-class SLCLicense(Base):
-    __tablename__='slclicense'
+class LicenseType(Base):
+    __tablename__='license_type'
 
     id=Column(Integer,primary_key=True,index=True)
     name=Column(String,unique=False)
     consumptionType=Column(SQLAlchemyEnum(LicenseConsumptionType), default=LicenseConsumptionType.basic)
     maxLicense=Column(Integer,unique=False)
-    company_id =Column(Integer,ForeignKey('slclient.id'))
-    application_id =Column(Integer,ForeignKey('slccapplication.id'))
+    company_id =Column(Integer,ForeignKey('company.id'))
+    application_id =Column(Integer,ForeignKey('application.id'))
 
-    company=relationship("SLClient", backref="slcclicense")
-    application=relationship("SLCCApplication", backref="slcclicense")
+    company=relationship("Company", backref="license")
+    application=relationship("Application", backref="license")
 
-    functionalities = relationship("SLCCFunctionality",secondary=functionalities_licenses_correspondance,back_populates='licenses')  
-    commercials=relationship("SLCCommercial",secondary=commercials_licenses_correspondance,back_populates='licenses')
+    functionalities = relationship("Functionality",secondary=functionalities_licenses_correspondance,back_populates='licenses')  
+    commercials=relationship("CompanyCommercial",secondary=commercials_licenses_correspondance,back_populates='licenses')
 
-class SLCCLicense(Base):
-    __tablename__='slcclicense'
+class LicenseUse(Base):
+    __tablename__='license_use'
 
     id=Column(Integer,primary_key=True,index=True)
     numberOfUseLeft=Column(String,unique=False)    
-    client_id =Column(Integer,ForeignKey('slcclient.id'))
-    slclicense_id=Column(Integer,ForeignKey('slclicense.id'))
+    client_id =Column(Integer,ForeignKey('company_client.id'))
+    license_id=Column(Integer,ForeignKey('license.id'))
 
-    client=relationship("SLCClient", backref="slcclicense")
-    slclicense=relationship("SLCLicense", backref="slcclicense")
+    client=relationship("CompanyClient", backref="license")
+    license=relationship("License", backref="license")
 
-    machines=relationship("SLCCMachine",secondary=machines_licenses_correspondance,back_populates='licenses')  
+    machines=relationship("Machine",secondary=machines_licenses_correspondance,back_populates='licenses')  
     
 
 
-class SLCCFunctionality(Base):
-    __tablename__='slccfunctionality'
+class Functionality(Base):
+    __tablename__='functionality'
 
     id=Column(Integer,primary_key=True,index=True)
     name=Column(String,unique=False)
-    application_id=Column(Integer,ForeignKey('slccapplication.id'))
+    application_id=Column(Integer,ForeignKey('application.id'))
 
-    licenses = relationship("SLCLicense",secondary=functionalities_licenses_correspondance,back_populates='functionalities')
-    application=relationship("SLCCApplication", backref="slccfunctionality")
+    licenses = relationship("License",secondary=functionalities_licenses_correspondance,back_populates='functionalities')
+    application=relationship("Application", backref="functionality")
 
-class SLCCApplication(Base):
-    __tablename__="slccapplication"
+class Application(Base):
+    __tablename__="application"
 
     id=Column(Integer,primary_key=True,index=True)
     name=Column(String,unique=False)
     licenceCheckingPeriod=Column(Integer,unique=False)
-    company_id =Column(Integer,ForeignKey('slclient.id'))
+    company_id =Column(Integer,ForeignKey('company.id'))
 
-    company=relationship("SLClient", backref="slccapplication")
+    company=relationship("Company", backref="application")
 
 # Tokens used for JWT Session tokens => To maintain authenticated user connection
 class SessionTokens(Base):

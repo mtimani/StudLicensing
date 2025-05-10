@@ -20,7 +20,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from auth import router, get_current_user, create_superadmin
 from profile import router as profile_router
-from slclient import router as slclient_router
+from StudLicensing.backend.app.company import router as company_router
 from datetime import datetime
 from database import engine, SessionLocal
 from typing import Annotated
@@ -167,8 +167,8 @@ app.include_router(auth.router)
 # Include Profile Router
 app.include_router(profile_router)
 
-# Include SLClient Router
-app.include_router(slclient_router)
+# Include Company Router
+app.include_router(company_router)
 
 
 

@@ -25,8 +25,8 @@ from io import BytesIO
 from email.message import EmailMessage
 from models import (
     Users, UserPicture, UserTypeEnum,
-    SLAdmin, SLClient, SLClientAdmin,
-    SLCClient, SLCCommercial, SLCDevelopper,
+    Admin, Company, CompanyAdmin,
+    CompanyClient, CompanyCommercial, CompanyDevelopper,
     SessionTokens, ValidationTokens, PasswordResetTokens, store
 )
 
@@ -151,21 +151,21 @@ def create_superadmin():
     try:
         # 2. Check if the superadmin already exists
         logger.info("Checking if superadmin exists...")
-        existing_admin = db.query(SLAdmin).filter(SLAdmin.username == SUPERADMIN_ACCOUNT_USERNAME).first()
+        existing_admin = db.query(Admin).filter(Admin.username == SUPERADMIN_ACCOUNT_USERNAME).first()
         if existing_admin:
             logger.info("Superadmin already exists. No action taken.")
             return
 
         # 3. Create the superadmin user if the user does not exist
         hashed_password = bcrypt_context.hash(SUPERADMIN_ACCOUNT_PASSWORD)
-        superadmin = SLAdmin(
+        superadmin = Admin(
             username=SUPERADMIN_ACCOUNT_USERNAME,
             name="Super",
             surname="Admin",
             hashedPassword=hashed_password,
             creationDate=datetime.utcnow(),
             activated=True,
-            userType=UserTypeEnum.sladmin
+            userType=UserTypeEnum.admin
         )
 
         # 4. Commit the user to the Database
@@ -576,7 +576,7 @@ async def create_user(
     creator_id = current_user["id"]
 
     # 2. Forbid non-admins from providing company_id
-    if creator_type != UserTypeEnum.sladmin and company_id is not None:
+    if creator_type != UserTypeEnum.admin and company_id is not None:
         logger.error(f"User of type '{creator_type}' attempted to specify company_id={company_id}, which is forbidden.")
         raise HTTPException(
             status_code=400,
@@ -587,21 +587,21 @@ async def create_user(
     allowed = False
     same_company_required = False
 
-    if creator_type == UserTypeEnum.sladmin:
+    if creator_type == UserTypeEnum.admin:
         allowed = True
-    elif creator_type == UserTypeEnum.slclientadmin:
+    elif creator_type == UserTypeEnum.company_admin:
         if user_type in {
-            UserTypeEnum.slclientadmin,
-            UserTypeEnum.slcclient,
-            UserTypeEnum.slccommercial,
-            UserTypeEnum.slcdevelopper,
+            UserTypeEnum.company_admin,
+            UserTypeEnum.company_client,
+            UserTypeEnum.company_commercial,
+            UserTypeEnum.company_developper,
         }:
             allowed = True
             same_company_required = True
     elif creator_type in {
-        UserTypeEnum.slccommercial,
-        UserTypeEnum.slcdevelopper,
-    } and user_type == UserTypeEnum.slcclient:
+        UserTypeEnum.company_commercial,
+        UserTypeEnum.company_developper,
+    } and user_type == UserTypeEnum.company_client:
         allowed = True
         same_company_required = True
 
@@ -614,7 +614,7 @@ async def create_user(
         )
 
     # 5. Forbid sladmin account creation if the company id is provided
-    if user_type == UserTypeEnum.sladmin and company_id is not None:
+    if user_type == UserTypeEnum.admin and company_id is not None:
         logger.error("Attempted to create an 'sladmin' with a company_id, which is not allowed.")
         raise HTTPException(
             status_code=400,
@@ -629,15 +629,15 @@ async def create_user(
             detail="Account creation forbidden."
         )
         
-    # 7. Check if SLCClient user already exists => update company table correspondance to add user to a new company
-    if user_type == UserTypeEnum.slcclient:
-        existing_client = db.query(SLCClient).filter(SLCClient.username == username).first()
+    # 7. Check if CompanyClient user already exists => update company table correspondance to add user to a new company
+    if user_type == UserTypeEnum.company_client:
+        existing_client = db.query(CompanyClient).filter(CompanyClient.username == username).first()
         if existing_client:
             # Update the companies field without sending validation email
             if company_id:
-                company = db.query(SLClient).filter(SLClient.id == company_id).first()
+                company = db.query(Company).filter(Company.id == company_id).first()
                 if not company:
-                    logger.error(f"Provided company_id {company_id} does not correspond to any SLClient in DB.")
+                    logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
                     raise HTTPException(
                         status_code=400, 
                         detail="Account creation forbidden."
@@ -646,11 +646,11 @@ async def create_user(
                     existing_client.companies.append(company)
                     db.commit()
                 logger.info(f"The new company {company_id} has been added for user {username}")
-                return {"detail": "SLCClient company associations updated successfully."}
+                return {"detail": "CompanyClient company associations updated successfully."}
     
     # 8. Determine company_id
-    if creator_type == UserTypeEnum.sladmin:
-        if user_type != UserTypeEnum.sladmin and company_id is None:
+    if creator_type == UserTypeEnum.admin:
+        if user_type != UserTypeEnum.admin and company_id is None:
             logger.error("Company ID must be provided by SLAdmin when creating client-related accounts.")
             raise HTTPException(
                 status_code=400,
@@ -669,9 +669,9 @@ async def create_user(
         company_id = creator.company_id
 
     # 9. Check the company_id exists
-    if user_type != UserTypeEnum.sladmin:
-        if not db.query(SLClient).filter(SLClient.id == company_id).first():
-            logger.error(f"Provided company_id {company_id} does not correspond to any SLClient in DB.")
+    if user_type != UserTypeEnum.admin:
+        if not db.query(Company).filter(Company.id == company_id).first():
+            logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
             raise HTTPException(
                 status_code=400,
                 detail="Account creation forbidden."
@@ -679,11 +679,11 @@ async def create_user(
 
     # 10. Map user type to subclass
     user_class_map = {
-        UserTypeEnum.sladmin: SLAdmin,
-        UserTypeEnum.slclientadmin: SLClientAdmin,
-        UserTypeEnum.slcclient: SLCClient,
-        UserTypeEnum.slccommercial: SLCCommercial,
-        UserTypeEnum.slcdevelopper: SLCDevelopper,
+        UserTypeEnum.admin: Admin,
+        UserTypeEnum.company_admin: CompanyAdmin,
+        UserTypeEnum.company_client: CompanyClient,
+        UserTypeEnum.company_commercial: CompanyCommercial,
+        UserTypeEnum.company_developper: CompanyDevelopper,
     }
     UserClass = user_class_map.get(user_type)
     if not UserClass:
@@ -711,14 +711,14 @@ async def create_user(
         "activated": False,
         "userType": user_type
     }
-    if user_type not in {UserTypeEnum.sladmin, UserTypeEnum.slcclient}:
+    if user_type not in {UserTypeEnum.admin, UserTypeEnum.company_client}:
         user_kwargs["company_id"] = company_id
 
-    # 13. For new SLCClient, associate the company
-    if user_type == UserTypeEnum.slcclient and company_id:
-        company = db.query(SLClient).filter(SLClient.id == company_id).first()
+    # 13. For new CompanyClient, associate the company
+    if user_type == UserTypeEnum.company_client and company_id:
+        company = db.query(Company).filter(Company.id == company_id).first()
         if not company:
-            logger.error(f"Provided company_id {company_id} does not correspond to any SLClient in DB.")
+            logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
             raise HTTPException(
                 status_code=400, 
                 detail="Invalid company ID."
