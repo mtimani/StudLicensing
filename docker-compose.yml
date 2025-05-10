@@ -23,10 +23,12 @@ services:
     build:
       context: StudLicensing/backend/
       dockerfile: Dockerfile
+    environment:
+      - PYTHONPATH=/app
     env_file:
       - .env
     volumes:
-      - ./StudLicensing/backend/app:/app
+      - ./StudLicensing/backend:/app
       - ./StudLicensing/uploads:/uploads
       - ./StudLicensing/logs:/logs
     ports:

@@ -5,15 +5,15 @@ import json
 import os
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, status
 from sqlalchemy.orm import Session
-from database import SessionLocal
+from app.database import SessionLocal
 from pydantic import BaseModel, Field
 from typing import Annotated, Optional
 from sqlalchemy_imageattach.entity import store_context
 from PIL import Image
 from io import BytesIO
-from logger import logger
-from auth import get_current_user, db_dependency
-from models import Users, UserPicture
+from app.logger import logger
+from app.auth import get_current_user, db_dependency
+from app.models import Users, UserPicture
 
 
 

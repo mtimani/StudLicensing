@@ -4,11 +4,11 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Form
 from pydantic import BaseModel, Field
 from typing import Annotated, Optional
-from database import SessionLocal
+from app.database import SessionLocal
 from sqlalchemy.orm import Session
-from logger import logger
-from auth import get_current_user
-from models import Company, Users, UserTypeEnum
+from app.logger import logger
+from app.auth import get_current_user
+from app.models import Company, Users, UserTypeEnum
 
 
 

@@ -5,7 +5,7 @@ import os
 import smtplib
 import uuid
 import re
-from logger import logger, login_logger
+from app.logger import logger, login_logger
 from datetime import timedelta, datetime
 from typing import Annotated, Optional
 from sqlalchemy_imageattach.entity import store_context
@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, EmailStr, ValidationError, model_validator
 from sqlalchemy.orm import Session
 from starlette import status
-from database import SessionLocal
+from app.database import SessionLocal
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
@@ -23,7 +23,7 @@ from dotenv import find_dotenv
 from PIL import Image
 from io import BytesIO
 from email.message import EmailMessage
-from models import (
+from app.models import (
     Users, UserPicture, UserTypeEnum,
     Admin, Company, CompanyAdmin,
     CompanyClient, CompanyCommercial, CompanyDevelopper,

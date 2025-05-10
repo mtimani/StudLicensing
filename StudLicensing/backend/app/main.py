@@ -9,20 +9,21 @@ if not hasattr(collections, "Iterator"):
     collections.Iterator = collections.abc.Iterator
 
 # Imports
-import models
-import auth
+from app import models
+#import app.auth
 import time
 import os
-from logger import logger
+from app.logger import logger
 from fastapi import FastAPI, status, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
-from auth import router, get_current_user, create_superadmin
-from profile import router as profile_router
-from company import router as company_router
+from app.auth import get_current_user, create_superadmin
+from app.auth import router as auth_router
+from app.profile import router as profile_router
+from app.company import router as company_router
 from datetime import datetime
-from database import engine, SessionLocal
+from app.database import engine, SessionLocal
 from typing import Annotated
 from dotenv import find_dotenv
 from sqlalchemy.orm import Session
@@ -162,7 +163,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 # ===========================================
 
 # Include Auth Router
-app.include_router(auth.router)
+app.include_router(auth_router)
 
 # Include Profile Router
 app.include_router(profile_router)

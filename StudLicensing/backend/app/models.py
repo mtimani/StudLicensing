@@ -1,7 +1,7 @@
 # ===========================================
 # Imports
 # ===========================================
-from database import Base
+from app.database import Base
 from sqlalchemy import Table,ForeignKey,Column,Integer,String,Date,Boolean,DateTime, Enum as SQLAlchemyEnum
 from sqlalchemy_imageattach.entity import Image, image_attachment
 from sqlalchemy.orm import relationship
