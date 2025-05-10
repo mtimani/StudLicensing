@@ -42,21 +42,21 @@ functionalities_licenses_correspondance = Table(
     "functionalities_licenses",
     Base.metadata,
     Column("functionality_id", ForeignKey("functionality.id"), primary_key=True),
-    Column("license_id", ForeignKey("license.id"), primary_key=True)
+    Column("license_id", ForeignKey("license_type.id"), primary_key=True)
 )
 
 machines_licenses_correspondance = Table(
     "machines_licenses",
     Base.metadata,
     Column("machine_id", ForeignKey("machine.id"), primary_key=True),
-    Column("license_id", ForeignKey("license.id"), primary_key=True)
+    Column("license_id", ForeignKey("license_use.id"), primary_key=True)
 )
 
 commercials_licenses_correspondance=Table(
     "commercials_licenses",
     Base.metadata,
     Column("company_commercial_id", ForeignKey("company_commercial.id"), primary_key=True),
-    Column("license_id", ForeignKey("license.id"), primary_key=True)
+    Column("license_id", ForeignKey("license_type.id"), primary_key=True)
 )
 
 
@@ -134,7 +134,7 @@ class CompanyCommercial(Users):
     company_id =Column(Integer,ForeignKey('company.id'))
 
     company=relationship("Company", backref="company_commercial", foreign_keys=[company_id])
-    licenses=relationship("License",secondary=commercials_licenses_correspondance,back_populates='commercials')
+    licenses=relationship("LicenseType",secondary=commercials_licenses_correspondance,back_populates='commercials')
     __mapper_args__ = {
         'polymorphic_identity': UserTypeEnum.company_commercial,
     }
@@ -169,11 +169,11 @@ class Machine(Base):
     macAddress=Column(String,unique=False)
     cpuId=Column(String,unique=False)
     hasLicenseActivated=Column(Boolean,unique=False)
-    licenseUsed=Column(Integer,ForeignKey('license.id'))
+    licenseUsed=Column(Integer,ForeignKey('license_use.id'))
     lastVerificationPassed=Column(Date,unique=False)
     lastVerificationTry=Column(Date,unique=False)
 
-    licenses=relationship("License",secondary=machines_licenses_correspondance,back_populates='machines')
+    licenses=relationship("LicenseUse",secondary=machines_licenses_correspondance,back_populates='machines')
 
 class LicenseConsumptionType(str, Enum):
     basic="basic"
@@ -200,10 +200,10 @@ class LicenseUse(Base):
     id=Column(Integer,primary_key=True,index=True)
     numberOfUseLeft=Column(String,unique=False)    
     client_id =Column(Integer,ForeignKey('company_client.id'))
-    license_id=Column(Integer,ForeignKey('license.id'))
+    license_id=Column(Integer,ForeignKey('license_type.id'))
 
     client=relationship("CompanyClient", backref="license")
-    license=relationship("License", backref="license")
+    license_type=relationship("LicenseType", backref="license_use")
 
     machines=relationship("Machine",secondary=machines_licenses_correspondance,back_populates='licenses')  
     
@@ -216,7 +216,7 @@ class Functionality(Base):
     name=Column(String,unique=False)
     application_id=Column(Integer,ForeignKey('application.id'))
 
-    licenses = relationship("License",secondary=functionalities_licenses_correspondance,back_populates='functionalities')
+    licenses = relationship("LicenseType",secondary=functionalities_licenses_correspondance,back_populates='functionalities')
     application=relationship("Application", backref="functionality")
 
 class Application(Base):
