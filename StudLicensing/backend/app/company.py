@@ -75,11 +75,11 @@ def create_company(
     db: Session = Depends(get_db)
 ):
     """
-    Create a new Company. Only accessible by SLAdmin users.
+    Create a new Company. Only accessible by Admin users.
     """
-    # 1. Check that the user is an SLAdmin
+    # 1. Check that the user is an Admin
     if current_user["type"] != UserTypeEnum.admin:
-        logger.error("Only SLAdmin users can create Companys.")
+        logger.error("Only Admin users can create Companies.")
         raise HTTPException(status_code=403, detail="Error creating client.")
 
     # 2. Create and add the new Company to the database
@@ -101,11 +101,11 @@ def delete_company(
     db: Session = Depends(get_db)
 ):
     """
-    Delete an existing Company by ID. Only accessible by SLAdmin users.
+    Delete an existing Company by ID. Only accessible by Admin users.
     """
-    # 1. Check that the user is an SLAdmin
+    # 1. Check that the user is an Admin
     if current_user["type"] != UserTypeEnum.admin:
-        logger.error("Only SLAdmin users can delete Companys.")
+        logger.error("Only Admin users can delete Companies.")
         raise HTTPException(status_code=403, detail="Error deleting client.")
 
     # 2. Find the Company in the database
@@ -133,7 +133,7 @@ def update_company(
 ):
     """
     Update an existing Company by ID.
-    Accessible by SLAdmin or CompanyAdmin of the same client.
+    Accessible by Admin or CompanyAdmin of the same client.
     """
     # 1. Retrieve the client from the DB
     client = db.query(Company).filter(Company.id == client_id).first()

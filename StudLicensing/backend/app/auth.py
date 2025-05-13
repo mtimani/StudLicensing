@@ -193,7 +193,7 @@ class CreateUserRequest(BaseModel):
     name: str
     surname: str
     user_type: UserTypeEnum
-    company_id: Optional[int] = None # Only relevant if creator is SLAdmin
+    company_id: Optional[int] = None # Only relevant if creator is Admin
 
 # ChangePasswordRequest class used for changing a users' password
 class ChangePasswordRequest(BaseModel):
@@ -651,7 +651,7 @@ async def create_user(
     # 8. Determine company_id
     if creator_type == UserTypeEnum.admin:
         if user_type != UserTypeEnum.admin and company_id is None:
-            logger.error("Company ID must be provided by SLAdmin when creating client-related accounts.")
+            logger.error("Company ID must be provided by Admin when creating client-related accounts.")
             raise HTTPException(
                 status_code=400,
                 detail="Account creation forbidden."
