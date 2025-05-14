@@ -4,7 +4,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, Form
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
-from typing import Annotated
+from typing import Annotated, Optional
 from app.database import SessionLocal
 from app.auth import get_current_user
 from app.logger import logger
@@ -41,23 +41,11 @@ db_dependency = Annotated[Session, Depends(get_db)]
 
 
 
-# ========================================================
-# Classes definition for various routes
-# ========================================================
-
-# UpdateUsernameRequest class used for user email modification
-class UpdateUsernameRequest(BaseModel):
-    old_username: EmailStr
-    new_username: EmailStr
-    confirm_new_username: EmailStr
-
-
-
 # ===========================================
 # API Routes
 # ===========================================
 
-# Get profile information route => GET /profile/info
+# Update username route => POST /admin/update_username
 @router.post("/update_username")
 def update_username(
     current_user: dict = Depends(get_current_user),
@@ -87,9 +75,17 @@ def update_username(
 
     # 4. Check if Form parameters are valid
     if new_username is not None and confirm_new_username != new_username:
-        raise ValueError("new_username and confirm_new_username must match")
+        logger.error(f'The provided new_username {new_username} does not match the provided confirm_new_username {confirm_new_username}.')
+        raise HTTPException(
+            status_code=404, 
+            detail=f"The provided new_username {new_username} does not match the provided confirm_new_username {confirm_new_username}."
+        )
     if old_username is not None and old_username == new_username:
-        raise ValueError("old_username and new_username cannot be the same")
+        logger.error(f'The provided old_username {old_username} cannot be the same as the new_username.')
+        raise HTTPException(
+            status_code=404, 
+            detail=f"The provided old_username {old_username} cannot be the same as the new_username."
+        )
 
     # 5. Check if the user is authorized to modify the username of the user
     allowed = False
@@ -151,7 +147,7 @@ def update_username(
             if db_requesting_user.company_id in client_company_ids:
                 db_user.username = new_username
             else:
-                logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} and a company_id = {db_requesting_user.company_id} tried to modify the user {old_username} with id = with id = {db_user.id} and a company_id = {client_company_ids}.')
+                logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} and a company_id = {db_requesting_user.company_id} tried to modify the user {old_username} with id = with id = {db_user.id} belonging to companies = {client_company_ids}.')
                 raise HTTPException(
                     status_code=404, 
                     detail="Username modification forbidden."
@@ -172,12 +168,149 @@ def update_username(
     db.refresh(db_user)
 
     # 12. Return to the user the updated username (email address)
-    logger.info(f'Successfully updated the username of {old_username} with id = {db_user.id} to {new_username}')
+    logger.info(f'Successfully updated the username of {old_username} with id = {db_user.id} to {new_username}.')
     return {
         "detail": "Username updated successfully",
         "user": {
             "username": new_username,
             "name": db_user.name,
             "surname": db_user.surname,
+        }
+    }
+
+# Update user profile information route => POST /admin/update_user_profile_info
+@router.post("/update_user_profile_info")
+def update_user_profile_info(
+    current_user: dict = Depends(get_current_user),
+    username: EmailStr = Form(...),
+    confirm_username: EmailStr = Form(...),
+    name: Optional[str] = Form(
+        None,
+        min_length=1,
+        max_length=50,
+        description="First name (1-50 characters)",
+    ),
+    surname: Optional[str] = Form(
+        None,
+        min_length=1,
+        max_length=50,
+        description="Surname (1-50 characters)",
+    ),
+    db: Session = Depends(get_db)
+):
+    """
+    Updates the username of a specific user (email address).
+    """
+    
+    # 1. Get creator information
+    creator_type = current_user["type"]
+    creator_id = current_user["id"]
+
+    # 2. Check if Form parameters are valid
+    if username is not None and confirm_username is not None and username != confirm_username:
+        logger.error(f'The provided username {username} does not match the provided confirm_username {confirm_username}.')
+        raise HTTPException(
+            status_code=404, 
+            detail=f"The provided username {username} does not match the provided confirm_username {confirm_username}."
+        )
+
+    # 3. Fetch the user for which the username change is requested from DB
+    db_user = db.query(Users).filter(Users.username == username).first()
+
+    # 4. Raise error if user not found
+    if not db_user:
+        logger.error(f'The user {username} has not been found.')
+        raise HTTPException(
+            status_code=404, 
+            detail="User profile modification forbidden."
+        )
+
+    # 5. Check if the user is authorized to modify the username of the user
+    allowed = False
+    same_company_required = False
+    user_type = db_user.userType
+
+    if creator_type == UserTypeEnum.admin:
+        allowed = True
+    elif creator_type == UserTypeEnum.company_admin:
+        if user_type in {
+            UserTypeEnum.company_admin,
+            UserTypeEnum.company_client,
+            UserTypeEnum.company_commercial,
+            UserTypeEnum.company_developper,
+        }:
+            allowed = True
+            same_company_required = True
+
+    # 6. Return error if the user is not allowed to modify the username
+    if not allowed:
+        logger.error(f'User {current_user["username"]} with id = {current_user["id"]} attempted to modify the profile information of {username} with id = {db_user.id}.')
+        raise HTTPException(
+            status_code=400,
+            detail="User profile modification forbidden."
+        )
+
+    # 7. Fetch the requesting user from the DB if the user is of type company_admin
+    if creator_type == UserTypeEnum.company_admin:
+        db_requesting_user = db.query(Users).filter(Users.id == current_user["id"]).first()
+
+        # 8. Raise error if user not found
+        if not db_requesting_user:
+            logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} has not been found.')
+            raise HTTPException(
+                status_code=404, 
+                detail="User profile modification forbidden."
+            )
+
+    # 9. Perform user profile information modification, check if the same company id id the user is a company_admin
+    if not same_company_required:
+        # Case of Admin user
+        if name is not None:
+            db_user.name = name
+        if surname is not None:
+            db_user.surname = surname
+    else:
+        # Check if the company id is the same
+        if user_type == UserTypeEnum.company_client:
+            # Case of the modification of a company_client user
+            client_company_ids = {c.id for c in db_user.companies}
+
+            if db_requesting_user.company_id in client_company_ids:
+                if name is not None:
+                    db_user.name = name
+                if surname is not None:
+                    db_user.surname = surname
+            else:
+                logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} and a company_id = {db_requesting_user.company_id} tried to modify the user profile of the user {username} with id = with id = {db_user.id} belonging to companies = {client_company_ids}.')
+                raise HTTPException(
+                    status_code=404, 
+                    detail="User profile modification forbidden."
+                )
+        else:
+            # Case of the company_admin, company_commercial and company_developper users
+            if db_user.company_id != db_requesting_user.company_id:
+                logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} and a company_id = {db_requesting_user.company_id} tried to modify the user {username} with id = with id = {db_user.id} and a company_id = {db_user.company_id}.')
+                raise HTTPException(
+                    status_code=404, 
+                    detail="User profile modification forbidden."
+                )
+            else:
+                if name is not None:
+                    db_user.name = name
+                if surname is not None:
+                    db_user.surname = surname
+    
+    # 10. Commit the changes to the database
+    db.commit()
+    db.refresh(db_user)
+
+    # 11. Return to the user the updated username (email address)
+    logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} Successfully updated the profile information of {username} with id = {db_user.id}.')
+    return {
+        "detail": "User profile information updated successfully",
+        "user": {
+            "username": username,
+            "name": name,
+            "surname": surname,
         }
     }
