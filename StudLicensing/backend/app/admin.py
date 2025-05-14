@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import Annotated, Optional
 from datetime import timedelta, datetime
+from sqlalchemy_imageattach.entity import store_context
 from PIL import Image
 from io import BytesIO
 from app.database import SessionLocal
@@ -16,6 +17,7 @@ from app.models import (
     Users, UserPicture, UserTypeEnum, 
     Admin, CompanyAdmin, CompanyClient, 
     CompanyCommercial, CompanyDevelopper, Company,
+    SessionTokens, ValidationTokens, PasswordResetTokens,
     store
 )
 
@@ -306,6 +308,175 @@ async def create_user(
     # 18. return the newly created user information to the user
     logger.info(f"The user {new_user.username} has been successfully created.")
     return {"username": new_user.username}
+
+# Delete a user account => POST /admin/delete_user
+@router.post("/delete_user")
+async def delete_user(
+    current_user: dict = Depends(get_current_user),
+    username: EmailStr = Form(...),
+    confirm_username: EmailStr = Form(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Function allowing to delete an existing user, also removing all the existing Session, Validation and PasswordReset Tokens.
+    """
+
+    # 1. Get creator information
+    creator_type = current_user["type"]
+    creator_id = current_user["id"]
+
+    # 2. Check if username is equal to the confirm_username
+    if username is not None and confirm_username is not None and username != confirm_username:
+        logger.error(f'The provided username {username} does not match the provided confirm_username {confirm_username}.')
+        raise HTTPException(
+            status_code=404, 
+            detail=f"The provided username {username} does not match the provided confirm_username {confirm_username}."
+        )
+
+    # 3. Query the database in order to find the user that is going to be removed
+    db_user = db.query(Users).filter(Users.username == username).first()
+
+    # 4. Raise error if user not found
+    if not db_user:
+        logger.error(f'The user {username} has not been found.')
+        raise HTTPException(
+            status_code=404, 
+            detail="Delete user account forbidden."
+        )
+
+    # 5. Check if user performing the request has the permission to delete the specified user account
+    allowed = False
+    same_company_required = False
+
+    if creator_type == UserTypeEnum.admin:
+        allowed = True
+    elif creator_type == UserTypeEnum.company_admin:
+        if db_user.userType in {
+            UserTypeEnum.company_admin,
+            UserTypeEnum.company_client,
+            UserTypeEnum.company_commercial,
+            UserTypeEnum.company_developper,
+        }:
+            allowed = True
+            same_company_required = True
+
+    # 6. Throw error if the removal of account is forbidden
+    if not allowed:
+        logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type = {current_user["type"]} tried to delete the user {username} of type = {db_user.userType}.')
+        raise HTTPException(
+            status_code=404, 
+            detail="Delete user account forbidden."
+        )
+        
+    # 7. Case of requesting user company_admin and the company_user to be removed is a member of several companies
+    if creator_type == UserTypeEnum.company_admin:
+        # Get the company_id of the company_admin performing the request
+        requestor_db_user = db.query(Users).filter(Users.username == current_user["username"]).first()
+        if not requestor_db_user:
+            logger.error(f'The user {current_user["username"]} has not been found.')
+            raise HTTPException(
+                status_code=404, 
+                detail="Delete user account forbidden."
+            )
+
+        # Get the compa,y object of the user requesting the deletion of another user
+        company = db.query(Company).filter(Company.id == requestor_db_user.company_id).first()
+        if not company:
+            logger.error(f"The company_id {requestor_db_user.company_id} does not correspond to any Company in DB.")
+            raise HTTPException(
+                status_code=400,
+                detail="Delete user account forbidden."
+            )
+
+        if db_user.userType == UserTypeEnum.company_client:
+            # Check if the company_admin is in the same company as the company_client scheduled for removal
+            if company not in db_user.companies:
+                client_company_ids = {c.id for c in db_user.companies}
+                logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type = {current_user["type"]} from company with the id = {requestor_db_user.company_id} tried to delete the user {username} of type = {db_user.userType} belonging to companies = {client_company_ids}.')
+                raise HTTPException(
+                    status_code=404, 
+                    detail="Delete user account forbidden."
+                )
+            else:
+                # Case of company_user belonging to several companies => remove from company
+                if len(db_user.companies) > 1:
+                    db_user.companies.remove(company)
+                    db.commit()
+                    db.refresh(db_user)
+                    
+                    logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} has removed the user {db_user.username} with id = {db_user.id} from the company {company.companyName}.')
+                    return {"detail": "Account deleted successfully."}
+
+                # Case of company_user belonging to one company => delete user
+                else:
+                    # Remove session tokens manually
+                    db.query(SessionTokens).filter_by(user_id=db_user.id).delete()
+                    db.commit()
+
+                    # Remove validation tokens manually
+                    db.query(ValidationTokens).filter_by(user_id=db_user.id).delete()
+                    db.commit()
+
+                    # Remove password reset tokens manually
+                    db.query(PasswordResetTokens).filter_by(user_id=db_user.id).delete()
+                    db.commit()
+                    
+                    # Cleanly delete the user
+                    with store_context(store):
+                        db.delete(db_user)
+                        db.commit()
+                    
+                    logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} has successfully deleted the user {db_user.username} with id = {db_user.id}.')
+                    return {"detail": "Account deleted successfully."}
+        else:
+            # Check if the company_admin is in the same company as the user scheduled for removal
+            if db_user.company_id != requestor_db_user.company_id:
+                logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type = {current_user["type"]} from company with the id = {requestor_db_user.company_id} tried to delete the user {username} of type = {db_user.userType} belonging to the company = {db_user.company_id}.')
+                raise HTTPException(
+                    status_code=404, 
+                    detail="Delete user account forbidden."
+                )
+
+            # Remove session tokens manually
+            db.query(SessionTokens).filter_by(user_id=db_user.id).delete()
+            db.commit()
+
+            # Remove validation tokens manually
+            db.query(ValidationTokens).filter_by(user_id=db_user.id).delete()
+            db.commit()
+
+            # Remove password reset tokens manually
+            db.query(PasswordResetTokens).filter_by(user_id=db_user.id).delete()
+            db.commit()
+                    
+            # Cleanly delete the user
+            with store_context(store):
+                db.delete(db_user)
+                db.commit()
+                    
+            logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} has successfully deleted the user {db_user.username} with id = {db_user.id}.')
+            return {"detail": "Account deleted successfully."}
+
+    # 8. If the requestor is an admin => proceed to the removal of the user account
+    # Remove session tokens manually
+    db.query(SessionTokens).filter_by(user_id=db_user.id).delete()
+    db.commit()
+
+    # Remove validation tokens manually
+    db.query(ValidationTokens).filter_by(user_id=db_user.id).delete()
+    db.commit()
+
+    # Remove password reset tokens manually
+    db.query(PasswordResetTokens).filter_by(user_id=db_user.id).delete()
+    db.commit()
+                    
+    # Cleanly delete the user
+    with store_context(store):
+        db.delete(db_user)
+        db.commit()
+                    
+    logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} has successfully deleted the user {db_user.username} with id = {db_user.id}.')
+    return {"detail": "Account deleted successfully."}
 
 # Update username route => POST /admin/update_username
 @router.post("/update_username")
