@@ -22,7 +22,6 @@ from app.auth import router as auth_router
 from app.profile import router as profile_router
 from app.company import router as company_router
 from app.admin import router as admin_router
-from datetime import datetime
 from app.database import engine, SessionLocal
 from typing import Annotated
 from dotenv import find_dotenv

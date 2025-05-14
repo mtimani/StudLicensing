@@ -1,7 +1,6 @@
 # ===========================================
 # Imports
 # ===========================================
-import json
 import os
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, status
 from sqlalchemy.orm import Session
