@@ -476,7 +476,7 @@ async def get_current_user(
     # 7. Raise error if the user is not in the database
     if not db_user:
         logger.error("The user ID provided in the JWT does not correspond to any user ID in the database.")
-        raise HTTPException(status_code=404, detail="Invalid user.")
+        raise HTTPException(status_code=403, detail="Invalid user.")
 
     # 8. Raise an error if the users' email address has not been validated and inform the user with a non-generic error
     if not db_user.activated:
@@ -564,14 +564,14 @@ async def validate_email(
     # 1. If passwords do not match => raise error
     if password != confirm_password:
         logger.error("Provided passwords do not match.")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match.")
+        raise HTTPException(status_code=403, detail="Passwords do not match.")
 
     # 2. Enforce password policy
     try:
         validate_password_policy(password)
     except ValueError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=403,
             detail=str(e)
         )
 
@@ -579,17 +579,17 @@ async def validate_email(
     validation_record = db.query(ValidationTokens).filter_by(token=token).first()
     if not validation_record:
         logger.error("The validation token is invalid.")
-        raise HTTPException(status_code=400, detail="Invalid validation token.")
+        raise HTTPException(status_code=403, detail="Invalid validation token.")
 
     if validation_record.expires_at < datetime.utcnow():
         logger.error("The validation token has expired.")
-        raise HTTPException(status_code=400, detail="Validation token has expired.")
+        raise HTTPException(status_code=403, detail="Validation token has expired.")
 
     # 4. Retrieve user
     db_user = db.query(Users).filter(Users.id == validation_record.user_id).first()
     if not db_user:
         logger.error("The user associated to the validation token record cannot be found.")
-        raise HTTPException(status_code=404, detail="User not found.")
+        raise HTTPException(status_code=403, detail="User not found.")
 
     # 5. Activate user and set password
     db_user.activated = True
@@ -618,7 +618,7 @@ async def change_password(
     # 1. Check if new_password matches confirm_password
     if data.new_password != data.confirm_password:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=403,
             detail="New password and confirm password do not match."
         )
 
@@ -628,17 +628,17 @@ async def change_password(
     # 3. If the user was not found in the database, throw an error
     if not db_user:
         logger.error(f'User {current_user["username"]} does not exist.')
-        raise HTTPException(status_code=404, detail="User not found.")
+        raise HTTPException(status_code=403, detail="User not found.")
 
     # 4. Check if old password is correct
     if not bcrypt_context.verify(data.old_password, db_user.hashedPassword):
         logger.error(f'The old password provided for the user {current_user["username"]} is incorrect.')
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Old password is incorrect.")
+        raise HTTPException(status_code=403, detail="Old password is incorrect.")
 
     # 5. Check if the new password is the same as the old password
     if data.old_password == data.new_password:
         logger.error(f'The new password must be different from the old password provided for the user {current_user["username"]}.')
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be different from the old password.")
+        raise HTTPException(status_code=403, detail="New password must be different from the old password.")
 
     # 6. Enforce the password policy on the new password.
     try:
@@ -646,7 +646,7 @@ async def change_password(
     except ValueError as e:
         logger.error(f'The new password policy is not respected for the provided password for the user {current_user["username"]}.')
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=403,
             detail=str(e)
         )
 
@@ -727,7 +727,7 @@ async def logout(
     # 4. Return an error if the JWT has not been found in the Database
     if not session_token:
         logger.error("The JWT token provided in the request does not have an associated session_token record.")
-        raise HTTPException(status_code=400, detail="Token not found.")
+        raise HTTPException(status_code=403, detail="Token not found.")
     
     # 5. Remove the JWT token from the DB if it is expired
     db.delete(session_token)
@@ -758,7 +758,7 @@ async def delete_account(
     # 3. Raise an error if the user has not been found in the database
     if not db_user:
         logger.error(f'The user {current_user["username"]} cannot be found in the database.')
-        raise HTTPException(status_code=404, detail="User not found.")
+        raise HTTPException(status_code=403, detail="User not found.")
 
     # 4. Remove session tokens manually
     db.query(SessionTokens).filter_by(user_id=user_id).delete()
@@ -828,7 +828,7 @@ async def reset_password(
     # 1. If the new_password does not match the confirm_password => throw a non-generic error
     if new_password != confirm_password:
         logger.error("The provided passwords do not match")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Passwords do not match.")
+        raise HTTPException(status_code=403, detail="Passwords do not match.")
 
     # 2. Query the database to retrieve the reset_record with the provided password reset token
     reset_record = db.query(PasswordResetTokens).filter_by(token=token).first()
@@ -836,12 +836,12 @@ async def reset_password(
     # 3. If the password reset token does not exist in the Database => throw a non-generic error
     if not reset_record:
         logger.error("The provided password_reset token does not exist in the database.")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid password reset token.")
+        raise HTTPException(status_code=403, detail="Invalid password reset token.")
 
     # 4. If the password reset token is expired => throw a non-generic error
     if reset_record.expires_at < datetime.utcnow():
         logger.error("The provided password_reset token has expired.")
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password reset token has expired.")
+        raise HTTPException(status_code=403, detail="Password reset token has expired.")
 
     # 5. Enforce the password policy on the new password.
     try:
@@ -849,7 +849,7 @@ async def reset_password(
     except ValueError as e:
         logger.error("The provided passwords do not respect the enforced password policy.")
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=403,
             detail=str(e)
         )
 
@@ -859,7 +859,7 @@ async def reset_password(
     # 7. If the user associated with the provided password reset token is not found => throw a non-generic error
     if not user:
         logger.error("The user associated with the provided password reset token cannot be found in the database.")
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        raise HTTPException(status_code=403, detail="User not found.")
 
     # 8. Update the user's password and remove the password reset token entry from the database
     user.hashedPassword = bcrypt_context.hash(new_password)

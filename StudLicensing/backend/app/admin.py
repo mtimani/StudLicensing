@@ -81,7 +81,7 @@ async def create_user(
     if creator_type != UserTypeEnum.admin and company_id is not None:
         logger.error(f"User of type '{creator_type}' attempted to specify company_id={company_id}, which is forbidden.")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Account creation forbidden."
         )
 
@@ -111,7 +111,7 @@ async def create_user(
     if user_type == UserTypeEnum.basic:
         logger.error("Attempted to create a user of forbidden type 'basic'.")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Account creation forbidden."
         )
 
@@ -119,7 +119,7 @@ async def create_user(
     if user_type == UserTypeEnum.admin and company_id is not None:
         logger.error("Attempted to create an 'sladmin' with a company_id, which is not allowed.")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Account creation forbidden."
         )
 
@@ -127,7 +127,7 @@ async def create_user(
     if not allowed:
         logger.warning(f"Account creation not allowed: User {current_user['username']} (ID: {current_user['id']}) with account type {creator_type} tried to create a user of type {user_type} for company {company_id}")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Account creation forbidden."
         )
         
@@ -140,7 +140,7 @@ async def create_user(
             if not creator or not hasattr(creator, "company_id") or creator.company_id is None:
                 logger.error("The account trying to create a new account is not associated with a company.")
                 raise HTTPException(
-                    status_code=400,
+                    status_code=403,
                     detail="Account creation forbidden."
                 )
             company_id = creator.company_id
@@ -151,7 +151,7 @@ async def create_user(
                 if not company:
                     logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
                     raise HTTPException(
-                        status_code=400, 
+                        status_code=403, 
                         detail="Account creation forbidden."
                     )
                 if company not in existing_client.companies:
@@ -165,7 +165,7 @@ async def create_user(
         if user_type != UserTypeEnum.admin and company_id is None:
             logger.error("Company ID must be provided by Admin when creating client-related accounts.")
             raise HTTPException(
-                status_code=400,
+                status_code=403,
                 detail="Account creation forbidden."
             )
         company_id = company_id
@@ -175,7 +175,7 @@ async def create_user(
         if not creator or not hasattr(creator, "company_id") or creator.company_id is None:
             logger.error("The account trying to create a new account is not associated with a company.")
             raise HTTPException(
-                status_code=400,
+                status_code=403,
                 detail="Account creation forbidden."
             )
         company_id = creator.company_id
@@ -185,7 +185,7 @@ async def create_user(
         if not db.query(Company).filter(Company.id == company_id).first():
             logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
             raise HTTPException(
-                status_code=400,
+                status_code=403,
                 detail="Account creation forbidden."
             )
 
@@ -201,7 +201,7 @@ async def create_user(
     if not UserClass:
         logger.error("Unsupported user type.")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Account creation forbidden."
         )
 
@@ -210,7 +210,7 @@ async def create_user(
     if existing_user:
         logger.error(f"User with email '{username}' already exists.")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Account creation forbidden."
         )
 
@@ -232,7 +232,7 @@ async def create_user(
         if not company:
             logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
             raise HTTPException(
-                status_code=400, 
+                status_code=403, 
                 detail="Invalid company ID."
             )
         user_kwargs["companies"] = [company]
@@ -246,7 +246,7 @@ async def create_user(
         ext = os.path.splitext(profilePicture.filename)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
             logger.error("Uploaded file is not a valid image.")
-            raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
+            raise HTTPException(status_code=403, detail="Uploaded file is not a valid image.")
         
         # Check content type.
         ALLOWED_MIME_TYPES = {"image/jpeg", "image/png", "image/gif"}
@@ -260,7 +260,7 @@ async def create_user(
             else:
                 logger.error("Uploaded file is not a valid image.")
                 raise HTTPException(
-                    status_code=400,
+                    status_code=403,
                     detail="Uploaded file is not a valid image."
                 )
         else:
@@ -278,11 +278,11 @@ async def create_user(
             image = Image.open(bytes_io)
             if image.format not in {"JPEG", "PNG"}:
                 logger.error("Uploaded file is not a valid image.")
-                raise HTTPException(status_code=400, detail="Uploaded file is not a valid image.")
+                raise HTTPException(status_code=403, detail="Uploaded file is not a valid image.")
             width, height = image.size
         except Exception as e:
             logger.error("Uploaded file is not a valid image.")
-            raise HTTPException(status_code=400, detail=f"Uploaded file is not a valid image.")
+            raise HTTPException(status_code=403, detail=f"Uploaded file is not a valid image.")
         
         # Create UserPicture instance
         user_picture = UserPicture()
@@ -329,7 +329,7 @@ async def delete_user(
     if username is not None and confirm_username is not None and username != confirm_username:
         logger.error(f'The provided username {username} does not match the provided confirm_username {confirm_username}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail=f"The provided username {username} does not match the provided confirm_username {confirm_username}."
         )
 
@@ -340,7 +340,7 @@ async def delete_user(
     if not db_user:
         logger.error(f'The user {username} has not been found.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="Delete user account forbidden."
         )
 
@@ -364,7 +364,7 @@ async def delete_user(
     if not allowed:
         logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type = {current_user["type"]} tried to delete the user {username} of type = {db_user.userType}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="Delete user account forbidden."
         )
         
@@ -375,7 +375,7 @@ async def delete_user(
         if not requestor_db_user:
             logger.error(f'The user {current_user["username"]} has not been found.')
             raise HTTPException(
-                status_code=404, 
+                status_code=403, 
                 detail="Delete user account forbidden."
             )
 
@@ -384,7 +384,7 @@ async def delete_user(
         if not company:
             logger.error(f"The company_id {requestor_db_user.company_id} does not correspond to any Company in DB.")
             raise HTTPException(
-                status_code=400,
+                status_code=403,
                 detail="Delete user account forbidden."
             )
 
@@ -394,7 +394,7 @@ async def delete_user(
                 client_company_ids = {c.id for c in db_user.companies}
                 logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type = {current_user["type"]} from company with the id = {requestor_db_user.company_id} tried to delete the user {username} of type = {db_user.userType} belonging to companies = {client_company_ids}.')
                 raise HTTPException(
-                    status_code=404, 
+                    status_code=403, 
                     detail="Delete user account forbidden."
                 )
             else:
@@ -433,7 +433,7 @@ async def delete_user(
             if db_user.company_id != requestor_db_user.company_id:
                 logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type = {current_user["type"]} from company with the id = {requestor_db_user.company_id} tried to delete the user {username} of type = {db_user.userType} belonging to the company = {db_user.company_id}.')
                 raise HTTPException(
-                    status_code=404, 
+                    status_code=403, 
                     detail="Delete user account forbidden."
                 )
 
@@ -502,7 +502,7 @@ def update_username(
     if not db_user:
         logger.error(f'The user {old_username} has not been found.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="Username modification forbidden."
         )
 
@@ -510,13 +510,13 @@ def update_username(
     if new_username is not None and confirm_new_username != new_username:
         logger.error(f'The provided new_username {new_username} does not match the provided confirm_new_username {confirm_new_username}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail=f"The provided new_username {new_username} does not match the provided confirm_new_username {confirm_new_username}."
         )
     if old_username is not None and old_username == new_username:
         logger.error(f'The provided old_username {old_username} cannot be the same as the new_username.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail=f"The provided old_username {old_username} cannot be the same as the new_username."
         )
 
@@ -541,7 +541,7 @@ def update_username(
     if not allowed:
         logger.error(f'User {current_user["username"]} with id = {current_user["id"]} attempted to modify the username of {old_username} with id = {db_user.id}.')
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Username modification forbidden."
         )
 
@@ -553,7 +553,7 @@ def update_username(
         if not db_requesting_user:
             logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} has not been found.')
             raise HTTPException(
-                status_code=404, 
+                status_code=403, 
                 detail="Username modification forbidden."
             )
 
@@ -563,7 +563,7 @@ def update_username(
     if db_check:
         logger.error(f'The user {new_username} is already in use by the user with id = {db_check.id}, you cannot modify the email to a username that is already in use.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="Username modification forbidden."
         )
 
@@ -582,7 +582,7 @@ def update_username(
             else:
                 logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} and a company_id = {db_requesting_user.company_id} tried to modify the user {old_username} with id = with id = {db_user.id} belonging to companies = {client_company_ids}.')
                 raise HTTPException(
-                    status_code=404, 
+                    status_code=403, 
                     detail="Username modification forbidden."
                 )
         else:
@@ -590,7 +590,7 @@ def update_username(
             if db_user.company_id != db_requesting_user.company_id:
                 logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} and a company_id = {db_requesting_user.company_id} tried to modify the user {old_username} with id = with id = {db_user.id} and a company_id = {db_user.company_id}.')
                 raise HTTPException(
-                    status_code=404, 
+                    status_code=403, 
                     detail="Username modification forbidden."
                 )
             else:
@@ -643,7 +643,7 @@ def update_user_profile_info(
     if username is not None and confirm_username is not None and username != confirm_username:
         logger.error(f'The provided username {username} does not match the provided confirm_username {confirm_username}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail=f"The provided username {username} does not match the provided confirm_username {confirm_username}."
         )
 
@@ -654,7 +654,7 @@ def update_user_profile_info(
     if not db_user:
         logger.error(f'The user {username} has not been found.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="User profile modification forbidden."
         )
 
@@ -679,7 +679,7 @@ def update_user_profile_info(
     if not allowed:
         logger.error(f'User {current_user["username"]} with id = {current_user["id"]} attempted to modify the profile information of {username} with id = {db_user.id}.')
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="User profile modification forbidden."
         )
 
@@ -691,7 +691,7 @@ def update_user_profile_info(
         if not db_requesting_user:
             logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} has not been found.')
             raise HTTPException(
-                status_code=404, 
+                status_code=403, 
                 detail="User profile modification forbidden."
             )
 
@@ -716,7 +716,7 @@ def update_user_profile_info(
             else:
                 logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} and a company_id = {db_requesting_user.company_id} tried to modify the user profile of the user {username} with id = with id = {db_user.id} belonging to companies = {client_company_ids}.')
                 raise HTTPException(
-                    status_code=404, 
+                    status_code=403, 
                     detail="User profile modification forbidden."
                 )
         else:
@@ -724,7 +724,7 @@ def update_user_profile_info(
             if db_user.company_id != db_requesting_user.company_id:
                 logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} and a company_id = {db_requesting_user.company_id} tried to modify the user {username} with id = with id = {db_user.id} and a company_id = {db_user.company_id}.')
                 raise HTTPException(
-                    status_code=404, 
+                    status_code=403, 
                     detail="User profile modification forbidden."
                 )
             else:
@@ -769,7 +769,7 @@ def add_client_user_to_company(
     if creator_type != UserTypeEnum.admin:
         logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} tried to add the user {username} to the company with id = {company_id}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail=f"Add user to company forbidden."
         )
 
@@ -777,7 +777,7 @@ def add_client_user_to_company(
     if username is not None and confirm_username is not None and username != confirm_username:
         logger.error(f'The provided username {username} does not match the provided confirm_username {confirm_username}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail=f"The provided username {username} does not match the provided confirm_username {confirm_username}."
         )
 
@@ -788,7 +788,7 @@ def add_client_user_to_company(
     if not db_user:
         logger.error(f'The user {username} has not been found.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="Add user to company forbidden."
         )
 
@@ -796,7 +796,7 @@ def add_client_user_to_company(
     if db_user.userType != UserTypeEnum.company_client:
         logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} tried to add the user {username} with userType {db_user.userType} to the company with id = {company_id}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="Add user to company forbidden."
         )
 
@@ -805,7 +805,7 @@ def add_client_user_to_company(
     if not company:
         logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Add user to company forbidden."
         )
 
@@ -815,7 +815,7 @@ def add_client_user_to_company(
     else:
         logger.error(f"User {username} is already part of company_id {company_id}.")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Add user to company forbidden."
         )
     
@@ -850,7 +850,7 @@ def remove_client_user_from_company(
     if creator_type != UserTypeEnum.admin:
         logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} tried to remove the user {username} from the company with id = {company_id}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail=f"Remove user from company forbidden."
         )
 
@@ -858,7 +858,7 @@ def remove_client_user_from_company(
     if username is not None and confirm_username is not None and username != confirm_username:
         logger.error(f'The provided username {username} does not match the provided confirm_username {confirm_username}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail=f"The provided username {username} does not match the provided confirm_username {confirm_username}."
         )
 
@@ -869,7 +869,7 @@ def remove_client_user_from_company(
     if not db_user:
         logger.error(f'The user {username} has not been found.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="Remove user from company forbidden."
         )
 
@@ -877,7 +877,7 @@ def remove_client_user_from_company(
     if db_user.userType != UserTypeEnum.company_client:
         logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} tried to remove the user {username} with userType {db_user.userType} from the company with id = {company_id}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="Remove user from company forbidden."
         )
 
@@ -886,7 +886,7 @@ def remove_client_user_from_company(
     if not company:
         logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Remove user from company forbidden."
         )
 
@@ -897,13 +897,13 @@ def remove_client_user_from_company(
         else:
             logger.error(f"Cannot remove the only remaining company from user {username}.")
             raise HTTPException(
-                status_code=400,
+                status_code=403,
                 detail="Remove user from company forbidden."
             )
     else:
         logger.error(f"User {username} is not part of company_id {company_id}.")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Remove user from company forbidden."
         )
     

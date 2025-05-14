@@ -165,3 +165,65 @@ def update_company(
     # 6. Return the result
     logger.info(f"Company {client.id} updated successfully with new company name: {client.companyName}")
     return {"detail": "Company updated successfully", "id": client.id, "companyName": client.companyName}
+
+# Search for a Company => POST /company/search
+@router.post("/search")
+def search_company(
+    current_user: dict = Depends(get_current_user),
+    company_name: Optional[str] = Form(None),
+    company_id: Optional[int] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Search for a Company by name or ID (mutually exclusive).
+    Only one of company_name or company_id should be provided.
+    If neither is provided, return all companies.
+    """
+
+    # 1. Ensure that either company_name or company_id is provided, but not both
+    if company_name and company_id:
+        logger.error("Both company_name and company_id cannot be provided.")
+        raise HTTPException(
+            status_code=403, 
+            detail="Provide either company_name or company_id, not both."
+        )
+
+    # 2. Check if the user performing the request is an admin
+    if current_user["type"] != UserTypeEnum.admin:
+        logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type {current_user["type"]} tried to perform a company search.')
+        raise HTTPException(
+            status_code=403, 
+            detail="Search request forbidden"
+        )
+
+    # 3. Initialize the query
+    query = db.query(Company)
+    
+    # 4. Search by company_name if provided
+    if company_name:
+        query = query.filter(Company.companyName.ilike(f"%{company_name}%"))
+    
+    # 5. Search by company_id if provided
+    if company_id is not None:
+        if company_id == 0:
+            logger.error(f'User {current_user["username"]} with id = {current_user["id"]} has requested a company that does not exist.')
+            raise HTTPException(status_code=403, detail="No companies found.")
+        query = query.filter(Company.id == company_id)
+
+    # 6. If neither company_name nor company_id is provided, return all companies
+    if not company_name and not company_id:
+        companies = query.all()
+        logger.info(f'User {current_user["username"]} with id = {current_user["id"]} requested the return of all companies.')
+        return {"companies": [{"company_id": company.id, "company_name": company.companyName} for company in companies]}
+
+    # 7. Execute the query and get the first result (if searching by company_name or company_id)
+    companies = query.all()
+    
+    # 8. If no company is found, raise an HTTP exception
+    if not companies:
+        logger.error(f'User {current_user["username"]} with id = {current_user["id"]} has requested a company that does not exist.')
+        raise HTTPException(status_code=403, detail="No companies found.")
+    
+    # 9. Return the company details
+    logger.info(f"Found {len(companies)} companies matching the search criteria.")
+    return {"companies": [{"company_id": company.id, "company_name": company.companyName} for company in companies]}

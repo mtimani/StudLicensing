@@ -79,7 +79,7 @@ def get_profile_info(
     if not db_user:
         logger.error(f'The user {current_user["username"]} has not been found.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="User not found"
         )
 
@@ -110,7 +110,7 @@ def update_profile_info(
     if not db_user:
         logger.error(f'The user {current_user["username"]} has not been found.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="User not found"
         )
 
@@ -144,7 +144,7 @@ def get_profile_picture(
 ):
     """
     Return the raw image data for the user's profile picture.
-    Or return 404 if no picture is set.
+    Or return 403 if no picture is set.
     """
 
     # 1. Fetch user from DB
@@ -154,7 +154,7 @@ def get_profile_picture(
     if not db_user:
         logger.error(f'The user {current_user["username"]} has not been found.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="User not found"
         )
 
@@ -165,7 +165,7 @@ def get_profile_picture(
     if not pictures:
         logger.error(f'No profile picture found for the user {current_user["username"]}.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="No profile picture found."
         )
 
@@ -200,7 +200,7 @@ async def update_profile_picture(
     if not db_user:
         logger.error(f'The user {current_user["username"]} has not been found.')
         raise HTTPException(
-            status_code=404, 
+            status_code=403, 
             detail="User not found"
         )
 
@@ -213,7 +213,7 @@ async def update_profile_picture(
         if ext not in ALLOWED_EXTENSIONS:
             logger.error("The uploaded file is not a valid image.")
             raise HTTPException(
-                status_code=400, 
+                status_code=403, 
                 detail="Uploaded file is not a valid image."
             )
         
@@ -229,7 +229,7 @@ async def update_profile_picture(
             else:
                 logger.error("The uploaded file is not a valid image.")
                 raise HTTPException(
-                    status_code=400,
+                    status_code=403,
                     detail="Uploaded file is not a valid image."
                 )
         else:
@@ -248,14 +248,14 @@ async def update_profile_picture(
         if image.format not in {"JPEG", "PNG"}:
             logger.error("The uploaded file is not a valid image.")
             raise HTTPException(
-                status_code=400,
+                status_code=403,
                 detail="Uploaded file is not a valid image."
             )
         width, height = image.size
     except Exception as e:
         logger.error("The uploaded file is not a valid image.")
         raise HTTPException(
-            status_code=400,
+            status_code=403,
             detail="Uploaded file is not a valid image."
         )
 
