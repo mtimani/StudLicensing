@@ -8,7 +8,7 @@ from typing import Annotated, Optional
 from app.database import SessionLocal
 from app.auth import get_current_user
 from app.logger import logger
-from app.models import Users, UserTypeEnum
+from app.models import Users, UserTypeEnum, Company
 
 
 
@@ -168,7 +168,7 @@ def update_username(
     db.refresh(db_user)
 
     # 12. Return to the user the updated username (email address)
-    logger.info(f'Successfully updated the username of {old_username} with id = {db_user.id} to {new_username}.')
+    logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} successfully updated the username of {old_username} with id = {db_user.id} to {new_username}.')
     return {
         "detail": "Username updated successfully",
         "user": {
@@ -305,7 +305,7 @@ def update_user_profile_info(
     db.refresh(db_user)
 
     # 11. Return to the user the updated username (email address)
-    logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} Successfully updated the profile information of {username} with id = {db_user.id}.')
+    logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} successfully updated the profile information of {username} with id = {db_user.id}.')
     return {
         "detail": "User profile information updated successfully",
         "user": {
@@ -313,4 +313,173 @@ def update_user_profile_info(
             "name": name,
             "surname": surname,
         }
+    }
+
+# Add client_user to a company => POST /admin/add_client_user_to_company
+@router.post("/add_client_user_to_company")
+def add_client_user_to_company(
+    current_user: dict = Depends(get_current_user),
+    username: EmailStr = Form(...),
+    confirm_username: EmailStr = Form(...),
+    company_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Adds a client_user to an additional company.
+    """
+    
+    # 1. Get creator information
+    creator_type = current_user["type"]
+    creator_id = current_user["id"]
+
+    # 2. Check if the user is an Admin
+    if creator_type != UserTypeEnum.admin:
+        logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} tried to add the user {username} to the company with id = {company_id}.')
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Add user to company forbidden."
+        )
+
+    # 3. Check if username is equal to the confirm_username
+    if username is not None and confirm_username is not None and username != confirm_username:
+        logger.error(f'The provided username {username} does not match the provided confirm_username {confirm_username}.')
+        raise HTTPException(
+            status_code=404, 
+            detail=f"The provided username {username} does not match the provided confirm_username {confirm_username}."
+        )
+
+    # 4. Fetch the user for which the company addition is requested from DB
+    db_user = db.query(Users).filter(Users.username == username).first()
+
+    # 5. Raise error if user not found
+    if not db_user:
+        logger.error(f'The user {username} has not been found.')
+        raise HTTPException(
+            status_code=404, 
+            detail="Add user to company forbidden."
+        )
+
+    # 6. Verify that the account type of the modified account is company_client
+    if db_user.userType != UserTypeEnum.company_client:
+        logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} tried to add the user {username} with userType {db_user.userType} to the company with id = {company_id}.')
+        raise HTTPException(
+            status_code=404, 
+            detail="Add user to company forbidden."
+        )
+
+    # 7. Check the company_id exists
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
+        raise HTTPException(
+            status_code=400,
+            detail="Add user to company forbidden."
+        )
+
+    # 8. Add company to the companies list of client_user
+    if company not in db_user.companies:
+        db_user.companies.append(company)
+    else:
+        logger.error(f"User {username} is already part of company_id {company_id}.")
+        raise HTTPException(
+            status_code=400,
+            detail="Add user to company forbidden."
+        )
+    
+    # 9. Commit the changes to the database
+    db.commit()
+    db.refresh(db_user)
+
+    # 10. Return to the user the updated username (email address)
+    logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} successfully added the user {username} with id = {db_user.id} to the company {company.companyName} with id = {company_id}.')
+    return {
+        "detail": f"User {username} has successfully been added to the company {company.companyName} with id = {company_id}",
+    }
+
+# Remove client_user from a company => POST /admin/remove_client_user_from_company
+@router.post("/remove_client_user_from_company")
+def remove_client_user_from_company(
+    current_user: dict = Depends(get_current_user),
+    username: EmailStr = Form(...),
+    confirm_username: EmailStr = Form(...),
+    company_id: int = Form(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Removes a client_user from a company.
+    """
+    
+    # 1. Get creator information
+    creator_type = current_user["type"]
+    creator_id = current_user["id"]
+
+    # 2. Check if the user is an Admin
+    if creator_type != UserTypeEnum.admin:
+        logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} tried to remove the user {username} from the company with id = {company_id}.')
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Remove user from company forbidden."
+        )
+
+    # 3. Check if username is equal to the confirm_username
+    if username is not None and confirm_username is not None and username != confirm_username:
+        logger.error(f'The provided username {username} does not match the provided confirm_username {confirm_username}.')
+        raise HTTPException(
+            status_code=404, 
+            detail=f"The provided username {username} does not match the provided confirm_username {confirm_username}."
+        )
+
+    # 4. Fetch the user for which the company addition is requested from DB
+    db_user = db.query(Users).filter(Users.username == username).first()
+
+    # 5. Raise error if user not found
+    if not db_user:
+        logger.error(f'The user {username} has not been found.')
+        raise HTTPException(
+            status_code=404, 
+            detail="Remove user from company forbidden."
+        )
+
+    # 6. Verify that the account type of the modified account is company_client
+    if db_user.userType != UserTypeEnum.company_client:
+        logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} tried to remove the user {username} with userType {db_user.userType} from the company with id = {company_id}.')
+        raise HTTPException(
+            status_code=404, 
+            detail="Remove user from company forbidden."
+        )
+
+    # 7. Check the company_id exists
+    company = db.query(Company).filter(Company.id == company_id).first()
+    if not company:
+        logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
+        raise HTTPException(
+            status_code=400,
+            detail="Remove user from company forbidden."
+        )
+
+    # 8. Remove company from the companies list of client_user
+    if company in db_user.companies:
+        if len(db_user.companies) > 1:
+            db_user.companies.remove(company)
+        else:
+            logger.error(f"Cannot remove the only remaining company from user {username}.")
+            raise HTTPException(
+                status_code=400,
+                detail="Remove user from company forbidden."
+            )
+    else:
+        logger.error(f"User {username} is not part of company_id {company_id}.")
+        raise HTTPException(
+            status_code=400,
+            detail="Remove user from company forbidden."
+        )
+    
+    # 9. Commit the changes to the database
+    db.commit()
+    db.refresh(db_user)
+
+    # 10. Return to the user the updated username (email address)
+    logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} successfully removed the user {username} with id = {db_user.id} from the company {company.companyName} with id = {company_id}.')
+    return {
+        "detail": f"User {username} has successfully been removed from the company {company.companyName} with id = {company_id}",
     }
