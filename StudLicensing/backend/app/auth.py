@@ -633,6 +633,16 @@ async def create_user(
     if user_type == UserTypeEnum.company_client:
         existing_client = db.query(CompanyClient).filter(CompanyClient.username == username).first()
         if existing_client:
+            # Non-admins should inherit their company_id
+            creator = db.query(Users).filter(Users.id == creator_id).first()
+            if not creator or not hasattr(creator, "company_id") or creator.company_id is None:
+                logger.error("The account trying to create a new account is not associated with a company.")
+                raise HTTPException(
+                    status_code=400,
+                    detail="Account creation forbidden."
+                )
+            company_id = creator.company_id
+
             # Update the companies field without sending validation email
             if company_id:
                 company = db.query(Company).filter(Company.id == company_id).first()
