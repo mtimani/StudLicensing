@@ -10,7 +10,6 @@ if not hasattr(collections, "Iterator"):
 
 # Imports
 from app import models
-#import app.auth
 import time
 import os
 from app.logger import logger
@@ -22,6 +21,7 @@ from app.auth import get_current_user, create_superadmin
 from app.auth import router as auth_router
 from app.profile import router as profile_router
 from app.company import router as company_router
+from app.admin import router as admin_router
 from datetime import datetime
 from app.database import engine, SessionLocal
 from typing import Annotated
@@ -170,6 +170,9 @@ app.include_router(profile_router)
 
 # Include Company Router
 app.include_router(company_router)
+
+# Include Admin Router
+app.include_router(admin_router)
 
 
 
