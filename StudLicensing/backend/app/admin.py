@@ -567,7 +567,18 @@ def update_username(
             detail="Username modification forbidden."
         )
 
-    # 10. Perform username modification, check if the same company id id the user is a company_admin
+    # 10. Check if the target user is a company_client and is member of several companies => Forbid the operation
+    if user_type == UserTypeEnum.company_client:
+        company_count = len(db_user.companies)
+        client_company_ids = {c.id for c in db_user.companies}
+        if company_count > 1:
+            logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} tried to modify the user {old_username} with id = with id = {db_user.id} belonging to companies = {client_company_ids}. Cannot change the username of a company_client belonging to several companies.')
+            raise HTTPException(
+                    status_code=403, 
+                    detail="Username modification forbidden."
+                )
+        
+    # 11. Perform username modification, check if the same company id id the user is a company_admin
     if not same_company_required:
         # Case of Admin user
         db_user.username = new_username
@@ -596,11 +607,11 @@ def update_username(
             else:
                 db_user.username = new_username
     
-    # 11. Commit the changes to the database
+    # 12. Commit the changes to the database
     db.commit()
     db.refresh(db_user)
 
-    # 12. Return to the user the updated username (email address)
+    # 13. Return to the user the updated username (email address)
     logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} successfully updated the username of {old_username} with id = {db_user.id} to {new_username}.')
     return {
         "detail": "Username updated successfully",
@@ -695,7 +706,18 @@ def update_user_profile_info(
                 detail="User profile modification forbidden."
             )
 
-    # 9. Perform user profile information modification, check if the same company id id the user is a company_admin
+    # 9. Check if the target user is a company_client and is member of several companies => Forbid the operation
+    if user_type == UserTypeEnum.company_client:
+        company_count = len(db_user.companies)
+        client_company_ids = {c.id for c in db_user.companies}
+        if company_count > 1:
+            logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} tried to modify the user {username} with id = with id = {db_user.id} belonging to companies = {client_company_ids}. Cannot change the information of a company_client belonging to several companies.')
+            raise HTTPException(
+                    status_code=403, 
+                    detail="Username profile modification forbidden."
+                )
+
+    # 10. Perform user profile information modification, check if the same company id id the user is a company_admin
     if not same_company_required:
         # Case of Admin user
         if name is not None:
@@ -733,11 +755,11 @@ def update_user_profile_info(
                 if surname is not None:
                     db_user.surname = surname
     
-    # 10. Commit the changes to the database
+    # 11. Commit the changes to the database
     db.commit()
     db.refresh(db_user)
 
-    # 11. Return to the user the updated username (email address)
+    # 12. Return to the user the updated username (email address)
     logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} successfully updated the profile information of {username} with id = {db_user.id}.')
     return {
         "detail": "User profile information updated successfully",
