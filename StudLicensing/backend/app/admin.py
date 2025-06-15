@@ -3,6 +3,7 @@
 # ========================================================
 import os
 from fastapi import APIRouter, Depends, HTTPException, Response, Form, File, UploadFile, status
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
 from typing import Annotated, Optional
@@ -938,3 +939,90 @@ def remove_client_user_from_company(
     return {
         "detail": f"User {username} has successfully been removed from the company {company.companyName} with id = {company_id}",
     }
+
+
+
+# Search for a user => POST /admin/search_user
+@router.post("/search_user")
+def search_user(
+    current_user: dict = Depends(get_current_user),
+    searched_user: Optional[str] = Form(None),
+    db: Session = Depends(get_db)
+):
+    """
+    Search for a User by email , first name, surname or a combination of first name and surname.
+    Only admin, company_admin, company_commercial and company_commercial users can perform this search.
+    Admin can search all
+    Company_admin can search all from the same company
+    Company_commercial and Company_developper can only clients from the same company
+    """
+
+    # 1. Check if the user performing the request is an admin, company_admin, company_commercial or company_commercial
+    if current_user["type"] != UserTypeEnum.admin and \
+       current_user["type"] != UserTypeEnum.company_admin and \
+       current_user["type"] != UserTypeEnum.company_commercial and \
+       current_user["type"] != UserTypeEnum.company_developper:
+        logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type {current_user["type"]} tried to perform a user search.')
+        raise HTTPException(
+            status_code=403, 
+            detail="Search request forbidden"
+        )
+
+    # 2. Initialize the query
+    query = db.query(Users)
+    
+    # 3. Prepare the filters query depending on the number of words in the searched_user
+    if searched_user:
+        # Split the searched_user into parts
+        parts = searched_user.split()
+        filters = []
+        if len(parts) == 1:     
+            # If only one part is provided, search by email or first name or surname
+            filters.append(Users.username.ilike(f"%{searched_user}%"))
+            filters.append(Users.name.ilike(f"%{searched_user}%"))
+            filters.append(Users.surname.ilike(f"%{searched_user}%"))
+            
+        elif len(parts) == 2:
+            # If two parts are provided, search by first name and surname in any order
+            filters.append(and_(Users.name.ilike(f"%{parts[0]}%"), Users.surname.ilike(f"%{parts[1]}%")))
+            filters.append(and_(Users.surname.ilike(f"%{parts[0]}%"), Users.name.ilike(f"%{parts[1]}%")))
+        else:
+            # Try all combinations of first name and surname
+            for n in range(1, len(parts)):
+                # Try with first name are firs n parts and surname is the remaining parts
+                first_name = " ".join(parts[:n])
+                surname = " ".join(parts[n:])
+                filters.append(and_(Users.name.ilike(f"%{first_name}%"),Users.surname.ilike(f"%{surname}%")))
+
+                #Try with surname as first n parts and first name is the remaining parts
+                first_name = " ".join(parts[n:])
+                surname = " ".join(parts[:n])
+                filters.append(and_(Users.name.ilike(f"%{first_name}%"),Users.surname.ilike(f"%{surname}%")))
+
+    #4 Prepare the extra filer depending on the user type    
+    #bug here!!!!                                                                                                                                                                                                                                                                                                             
+    current_user_based_filter = []
+    if current_user["type"] == UserTypeEnum.company_admin:
+        # If the user is a company_admin, filter by the company_id of the current user
+        current_user_based_filter.append(Users.company_id == current_user["company_id"])
+    elif current_user["type"] in {UserTypeEnum.company_commercial, UserTypeEnum.company_developper}:
+        # If the user is a company_commercial or company_developper, filter by the company_id of the current user
+        current_user_based_filter.append(Users.company_id == current_user["company_id"])
+        # Also filter by userType to only include company_client users
+        current_user_based_filter.append(Users.userType == UserTypeEnum.company_client)
+ 
+    # 5. Combine the filters with the current_user_based_filter
+    query = query.filter(and_(or_(*filters),and_(*current_user_based_filter)))
+
+        
+    # 6. Execute the query and get the results
+    resulting_users = query.all()
+    
+    # 7. If no company is found, raise an HTTP exception
+    if not resulting_users:
+        logger.error(f'User {current_user["username"]} with id = {current_user["id"]} has requested a user that does not exist within the users it can search.')
+        raise HTTPException(status_code=403, detail="No users found.")
+    
+    # 8. Return the company details
+    logger.info(f"Found {len(resulting_users)} companies matching the search criteria.")
+    return {"users": [{"id": user.id, "username": user.username,"name":user.name,"surname":user.surname,"user_type":user.userType} for user in resulting_users]}
