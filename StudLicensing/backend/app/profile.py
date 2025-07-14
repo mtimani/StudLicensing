@@ -171,8 +171,15 @@ def get_profile_picture(
 
     # 5. Extract the picture and open the picture from the store (located in /uploads)
     pic = pictures[0]
-    with pic.store.open(pic) as f:
-        image_bytes = f.read()
+    try:
+        with pic.store.open(pic) as f:
+            image_bytes = f.read()
+    except OSError as e:
+        logger.error(f'Error accessing profile picture for user {current_user["username"]}: {str(e)}')
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to retrieve profile picture due to server error."
+        )
 
     # 6. Return the picture as a raw file response or the correct image mimetype if it is set
     mimetype = pic.mimetype or "application/octet-stream"
@@ -261,7 +268,7 @@ async def update_profile_picture(
 
     # 5. Remove the old picture (if any) inside a store_context
     from sqlalchemy_imageattach.entity import store_context
-    from models import store
+    from app.models import store
 
     with store_context(store):
         # Convert to list so we can iterate the existing pictures
