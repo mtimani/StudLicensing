@@ -128,18 +128,21 @@ def generate_gif_bytes(width=10, height=10):
     buffer.seek(0)
     return buffer
 
-def generate_large_png_bytes(size_mb=11):
+def generate_large_png_bytes(size_mb_target=6):
     """
     Create a large in-memory PNG file for testing file size limits.
     Approximate size in MB by adjusting dimensions (rough estimation).
     """
-    # Rough calculation: 5000x5000 RGB image, PNG compression reduces size
-    width = 5000
-    height = 5000
+    # Rough calculation: 6000x6000 RGB image to try exceeding 5MB even after compression
+    width = 6000
+    height = 6000
     buffer = io.BytesIO()
     image = Image.new('RGB', (width, height), color=(73, 109, 137))
-    image.save(buffer, format='PNG')
+    image.save(buffer, format='PNG', quality=100)  # Maximize quality to increase size
     buffer.seek(0)
+    # Print actual size for debugging
+    actual_size_mb = len(buffer.getvalue()) / (1024 * 1024)
+    print(f"Generated large PNG size: {actual_size_mb:.2f} MB")
     return buffer
 
 # =====================================================================
@@ -245,15 +248,20 @@ def test_update_profile_picture_unsupported_format_gif(client, test_user):
     assert resp.status_code == 403
     assert resp.json()["detail"] == "Uploaded file is not a valid image."
 
-def test_update_profile_picture_large_file(client, test_user):
-    # Test uploading a very large file (approximating >10MB)
+def test_update_profile_picture_large_file(client, test_user, monkeypatch):
+    # Test uploading a very large file (approximating >5MB, should fail due to size limit)
     large_img_bytes = generate_large_png_bytes()
+    
+    # Since generating a truly large file might be unreliable due to compression,
+    # mock the file size check by patching the profile.py module's MAX_UPLOAD_SIZE_BYTES
+    # to a very low value (e.g., 1KB) to simulate exceeding the limit with a small file
+    monkeypatch.setattr("app.profile.MAX_UPLOAD_SIZE_BYTES", 1024)  # 1KB, much smaller than any generated file
+    monkeypatch.setattr("app.profile.MAX_UPLOAD_SIZE_MB", 0.001)  # For error message consistency
+    
     files = {"new_picture": ("large.png", large_img_bytes, "image/png")}
     resp = client.put("/profile/picture", files=files)
-    # Expect success unless a specific size limit is enforced in the app
-    # If a size limit should be enforced, update profile.py to check file size
-    assert resp.status_code == 200, "Large file upload should succeed unless size limit is enforced"
-    assert resp.json()["detail"] == "Profile picture updated successfully."
+    assert resp.status_code == 403
+    assert "Uploaded file size exceeds maximum limit of 0.001 MB" in resp.json()["detail"]
 
 def test_get_profile_picture_corrupted_data(client, test_user, monkeypatch):
     # Test retrieval when picture data is corrupted or inaccessible

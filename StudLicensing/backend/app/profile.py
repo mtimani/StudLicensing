@@ -17,6 +17,14 @@ from app.models import Users, UserPicture
 
 
 # ===========================================
+# Global Configuration
+# ===========================================
+MAX_UPLOAD_SIZE_MB = 5  # Maximum upload size for profile pictures in MB
+MAX_UPLOAD_SIZE_BYTES = MAX_UPLOAD_SIZE_MB * 1024 * 1024  # Convert MB to bytes
+
+
+
+# ===========================================
 # Profile router declaration
 # ===========================================
 router = APIRouter(
@@ -214,6 +222,14 @@ async def update_profile_picture(
     # 3. Validate the new image
     profilePicture = new_picture
     if profilePicture is not None:
+        # Check file size before reading
+        file_size = profilePicture.size
+        if file_size > MAX_UPLOAD_SIZE_BYTES:
+            logger.error(f"Uploaded file size ({file_size} bytes) exceeds maximum limit ({MAX_UPLOAD_SIZE_MB} MB) for user {current_user['username']}.")
+            raise HTTPException(
+                status_code=403,
+                detail=f"Uploaded file size exceeds maximum limit of {MAX_UPLOAD_SIZE_MB} MB."
+            )
         # Check file extension.
         ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png"}
         ext = os.path.splitext(profilePicture.filename)[1].lower()
