@@ -999,16 +999,18 @@ def search_user(
                 surname = " ".join(parts[:n])
                 filters.append(and_(Users.name.ilike(f"%{first_name}%"),Users.surname.ilike(f"%{surname}%")))
 
-    #4 Prepare the extra filer depending on the user type    
-    #bug here!!!!                                                                                                                                                                                                                                                                                                             
-    current_user_based_filter = []
-    if current_user["type"] == UserTypeEnum.company_admin:
-        # If the user is a company_admin, filter by the company_id of the current user
-        current_user_based_filter.append(Users.company_id == current_user["company_id"])
-    elif current_user["type"] in {UserTypeEnum.company_commercial, UserTypeEnum.company_developper}:
-        # If the user is a company_commercial or company_developper, filter by the company_id of the current user
-        current_user_based_filter.append(Users.company_id == current_user["company_id"])
-        # Also filter by userType to only include company_client users
+    #4 Prepare the company and user type related extra filter depending on the searching user type    
+    # Get company of current user if company_admin, company_commercial or company_developper 
+    current_user_company = None
+    same_company_required = False
+    if current_user["type"] in {UserTypeEnum.company_admin, UserTypeEnum.company_commercial, UserTypeEnum.company_developper}:
+            current_user_info = db.query(Users).filter(Users.id == current_user["id"]).first()
+            current_user_company = current_user_info.company_id if current_user_info else None
+            same_company_required = True if current_user_info else False
+            
+    current_user_based_filter = []   
+    if current_user["type"] in {UserTypeEnum.company_commercial, UserTypeEnum.company_developper}:
+        # Filter by userType to only include company_client users
         current_user_based_filter.append(Users.userType == UserTypeEnum.company_client)
  
     # 5. Combine the filters with the current_user_based_filter
@@ -1018,11 +1020,37 @@ def search_user(
     # 6. Execute the query and get the results
     resulting_users = query.all()
     
-    # 7. If no company is found, raise an HTTP exception
-    if not resulting_users:
+    #7. Filter the results by company if the user is a company_admin, company_commercial or company_developper
+    filtered_resulting_users = []
+    if same_company_required and current_user_company is not None:
+        for user in resulting_users :
+            if user.userType in {UserTypeEnum.company_admin, UserTypeEnum.company_commercial, UserTypeEnum.company_developper}:
+                if user.company_id == current_user_company:
+                    filtered_resulting_users.append(user)
+            elif user.userType == UserTypeEnum.company_client:
+                if current_user_company in [company.id for company in user.companies]:
+                    filtered_resulting_users.append(user)
+    elif current_user["type"] == UserTypeEnum.admin:
+        filtered_resulting_users= resulting_users
+    
+
+    # 8. If no company is found, raise an HTTP exception
+    if not filtered_resulting_users:
         logger.error(f'User {current_user["username"]} with id = {current_user["id"]} has requested a user that does not exist within the users it can search.')
         raise HTTPException(status_code=403, detail="No users found.")
     
-    # 8. Return the company details
-    logger.info(f"Found {len(resulting_users)} companies matching the search criteria.")
-    return {"users": [{"id": user.id, "username": user.username,"name":user.name,"surname":user.surname,"user_type":user.userType} for user in resulting_users]}
+    # 9. Return the company details
+    logger.info(f"Found {len(filtered_resulting_users)} companies matching the search criteria.")
+    return {
+        "users": [
+            {
+                "id": user.id,
+                "username": user.username,
+                "name": user.name,
+                "surname": user.surname,
+                "user_type": user.userType,
+                "company": [company.id for company in user.companies] if user.userType == UserTypeEnum.company_client else user.company_id
+            } for user in filtered_resulting_users
+        ]
+    }
+    #return {"users": [{"id": user.id, "username": user.username,"name":user.name,"surname":user.surname,"user_type":user.userType,"company": {[company.id for company in user.companies] if user.userType==UserTypeEnum.company_client } for user in resulting_users]}
