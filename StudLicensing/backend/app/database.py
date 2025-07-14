@@ -4,7 +4,7 @@
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from dotenv import find_dotenv
 
 
@@ -50,4 +50,4 @@ engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit = False, autoflush = False, bind = engine)
 
 # Declare database
-Base= declarative_base()
+Base = declarative_base()
