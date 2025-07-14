@@ -807,7 +807,7 @@ async def forgot_password(
         send_password_reset_email(user.username, reset_link)
         logger.info(f'Password reset token has been sent to the user {user.username}.')
     else:
-        logger.error(f'The user {user.username} does not exist, the password reset link has not been sent.')
+        logger.error(f'The user {email} does not exist, the password reset link has not been sent.')
     
     # 3. Always return the same generic message to avoid user enumeration
     return {"detail": "If an account with that email exists, a password reset link has been sent."}
