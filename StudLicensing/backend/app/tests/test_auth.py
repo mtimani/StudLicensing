@@ -406,6 +406,36 @@ def test_account_delete_happy_path(client, db_session, pwd_user):
     assert r.status_code == 200
     assert db_session.query(Users).filter_by(username=pwd_user.username).first() is None
 
+def test_admin_cannot_delete_own_account(client, db_session):
+    # Create an admin user in the test database
+    admin_user = Admin(
+        username="admin-self-delete@ex.com",
+        hashedPassword=bcrypt_context.hash("AdminPass1!"),
+        activated=True,
+        name="Admin",
+        surname="User",
+        creationDate=datetime.utcnow()
+    )
+    db_session.add(admin_user)
+    db_session.commit()
+
+    # Log in as the admin user to get the token
+    token = login_and_get_token(client, admin_user.username, "AdminPass1!")
+
+    # Attempt to delete the admin user's account
+    response = client.delete(
+        "/auth/account_delete",
+        headers={"Authorization": f"Bearer {token}"}
+    )
+
+    # Check to ensure the deletion attempt is blocked
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}: {response.text}"
+    assert "Admins cannot delete their own accounts." in response.json()["detail"]
+
+    # Verify the admin user still exists in the database
+    remaining_admin = db_session.query(Users).filter_by(username=admin_user.username).first()
+    assert remaining_admin is not None, "Admin user should not be deleted."
+
 # =========================================================================
 # 5. Forgot-password & reset
 # =========================================================================

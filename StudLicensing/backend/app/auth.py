@@ -749,35 +749,40 @@ async def delete_account(
     Function allowing to delete an existing user, also removing all the existing Session, Validation and PasswordReset Tokens.
     """
 
-    # 1. Get the user id from the provided user JWT
+    # 1. Check if the user trying to delete the account is an admin
+    if current_user['type'] == UserTypeEnum.admin:
+        logger.error(f"Admin user {current_user['username']} tried to delete their own account.")
+        raise HTTPException(status_code=403, detail="Admins cannot delete their own accounts.")
+
+    # 2. Get the user id from the provided user JWT
     user_id = current_user["id"]
 
-    # 2. Query the database in order to find the user that is going to be removed
+    # 3. Query the database in order to find the user that is going to be removed
     db_user = db.query(Users).filter(Users.id == user_id).first()
 
-    # 3. Raise an error if the user has not been found in the database
+    # 4. Raise an error if the user has not been found in the database
     if not db_user:
         logger.error(f'The user {current_user["username"]} cannot be found in the database.')
         raise HTTPException(status_code=403, detail="User not found.")
 
-    # 4. Remove session tokens manually
+    # 5. Remove session tokens manually
     db.query(SessionTokens).filter_by(user_id=user_id).delete()
     db.commit()
 
-    # 5. Remove validation tokens manually
+    # 6. Remove validation tokens manually
     db.query(ValidationTokens).filter_by(user_id=user_id).delete()
     db.commit()
 
-    # 6. Remove password reset tokens manually
+    # 7. Remove password reset tokens manually
     db.query(PasswordResetTokens).filter_by(user_id=user_id).delete()
     db.commit()
 
-    # 7. Wrap the DB delete in a store_context so imageattach can cleanly remove files (profile image removal)
+    # 8. Wrap the DB delete in a store_context so imageattach can cleanly remove files (profile image removal)
     with store_context(store):
         db.delete(db_user)
         db.commit()
 
-    # 8. return a message specifying that the user has been deleted successfully
+    # 9. return a message specifying that the user has been deleted successfully
     logger.info(f'The user {current_user["username"]} has been successfully deleted.')
     return {"detail": "Account deleted successfully."}
 
