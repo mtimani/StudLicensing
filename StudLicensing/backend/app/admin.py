@@ -136,23 +136,24 @@ async def create_user(
     if user_type == UserTypeEnum.company_client:
         existing_client = db.query(CompanyClient).filter(CompanyClient.username == username).first()
         if existing_client:
-            # Non-admins should inherit their company_id
-            creator = db.query(Users).filter(Users.id == creator_id).first()
-            if not creator or not hasattr(creator, "company_id") or creator.company_id is None:
-                logger.error("The account trying to create a new account is not associated with a company.")
-                raise HTTPException(
-                    status_code=403,
-                    detail="Account creation forbidden."
-                )
-            company_id = creator.company_id
-
+            # Admins can update without needing a company association
+            if creator_type != UserTypeEnum.admin:
+                # Non-admins should inherit their company_id
+                creator = db.query(Users).filter(Users.id == creator_id).first()
+                if not creator or not hasattr(creator, "company_id") or creator.company_id is None:
+                    logger.error("The account trying to create a new account is not associated with a company.")
+                    raise HTTPException(
+                        status_code=403,
+                        detail="Account creation forbidden."
+                    )
+                company_id = creator.company_id
             # Update the companies field without sending validation email
             if company_id:
                 company = db.query(Company).filter(Company.id == company_id).first()
                 if not company:
                     logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
                     raise HTTPException(
-                        status_code=403, 
+                        status_code=403,
                         detail="Account creation forbidden."
                     )
                 if company not in existing_client.companies:
@@ -227,17 +228,13 @@ async def create_user(
     if user_type not in {UserTypeEnum.admin, UserTypeEnum.company_client}:
         user_kwargs["company_id"] = company_id
 
-    # 13. For new CompanyClient, associate the company
+    # 13. For new CompanyClient, do not associate company directly in kwargs to avoid premature list initialization issues
     if user_type == UserTypeEnum.company_client and company_id:
         company = db.query(Company).filter(Company.id == company_id).first()
         if not company:
             logger.error(f"Provided company_id {company_id} does not correspond to any Company in DB.")
-            raise HTTPException(
-                status_code=403, 
-                detail="Invalid company ID."
-            )
-        user_kwargs["companies"] = [company]
-
+            raise HTTPException(status_code=403, detail="Invalid company ID.")
+    
     new_user = UserClass(**user_kwargs)
 
     # 14. Process the profile picture if provided.
@@ -299,6 +296,14 @@ async def create_user(
     db.commit()
     db.refresh(new_user)
 
+    # 15.5. For CompanyClient, associate the company after user creation to check actual database state
+    if user_type == UserTypeEnum.company_client and company_id:
+        company = db.query(Company).filter(Company.id == company_id).first()
+        if company and company not in new_user.companies:
+            new_user.companies.append(company)
+            db.commit()
+            db.refresh(new_user)
+
     # 16. Create a validation token and store it in the Database
     validation_token_str = create_validation_token(db, new_user.id)
     
@@ -321,34 +326,35 @@ async def delete_user(
     """
     Function allowing to delete an existing user, also removing all the existing Session, Validation and PasswordReset Tokens.
     """
-
     # 1. Get creator information
     creator_type = current_user["type"]
     creator_id = current_user["id"]
-
     # 2. Check if username is equal to the confirm_username
     if username is not None and confirm_username is not None and username != confirm_username:
         logger.error(f'The provided username {username} does not match the provided confirm_username {confirm_username}.')
         raise HTTPException(
-            status_code=403, 
+            status_code=403,
             detail=f"The provided username {username} does not match the provided confirm_username {confirm_username}."
         )
-
     # 3. Query the database in order to find the user that is going to be removed
     db_user = db.query(Users).filter(Users.username == username).first()
-
     # 4. Raise error if user not found
     if not db_user:
         logger.error(f'The user {username} has not been found.')
         raise HTTPException(
-            status_code=403, 
+            status_code=403,
             detail="Delete user account forbidden."
         )
-
-    # 5. Check if user performing the request has the permission to delete the specified user account
+    # 5. Prevent self-deletion for admin users
+    if current_user["id"] == db_user.id and creator_type == UserTypeEnum.admin:
+        logger.error(f'The admin user {current_user["username"]} with id = {current_user["id"]} attempted to delete themselves, which is forbidden.')
+        raise HTTPException(
+            status_code=403,
+            detail="Delete user account forbidden."
+        )
+    # 6. Check if user performing the request has the permission to delete the specified user account
     allowed = False
     same_company_required = False
-
     if creator_type == UserTypeEnum.admin:
         allowed = True
     elif creator_type == UserTypeEnum.company_admin:
@@ -360,27 +366,24 @@ async def delete_user(
         }:
             allowed = True
             same_company_required = True
-
-    # 6. Throw error if the removal of account is forbidden
+    # 7. Throw error if the removal of account is forbidden
     if not allowed:
         logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type = {current_user["type"]} tried to delete the user {username} of type = {db_user.userType}.')
         raise HTTPException(
-            status_code=403, 
+            status_code=403,
             detail="Delete user account forbidden."
         )
-        
-    # 7. Case of requesting user company_admin and the company_user to be removed is a member of several companies
+    # 8. Case of requesting user company_admin and the company_user to be removed is a member of several companies
     if creator_type == UserTypeEnum.company_admin:
         # Get the company_id of the company_admin performing the request
         requestor_db_user = db.query(Users).filter(Users.username == current_user["username"]).first()
         if not requestor_db_user:
             logger.error(f'The user {current_user["username"]} has not been found.')
             raise HTTPException(
-                status_code=403, 
+                status_code=403,
                 detail="Delete user account forbidden."
             )
-
-        # Get the compa,y object of the user requesting the deletion of another user
+        # Get the company object of the user requesting the deletion of another user
         company = db.query(Company).filter(Company.id == requestor_db_user.company_id).first()
         if not company:
             logger.error(f"The company_id {requestor_db_user.company_id} does not correspond to any Company in DB.")
@@ -388,14 +391,13 @@ async def delete_user(
                 status_code=403,
                 detail="Delete user account forbidden."
             )
-
         if db_user.userType == UserTypeEnum.company_client:
             # Check if the company_admin is in the same company as the company_client scheduled for removal
             if company not in db_user.companies:
                 client_company_ids = {c.id for c in db_user.companies}
                 logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type = {current_user["type"]} from company with the id = {requestor_db_user.company_id} tried to delete the user {username} of type = {db_user.userType} belonging to companies = {client_company_ids}.')
                 raise HTTPException(
-                    status_code=403, 
+                    status_code=403,
                     detail="Delete user account forbidden."
                 )
             else:
@@ -404,29 +406,23 @@ async def delete_user(
                     db_user.companies.remove(company)
                     db.commit()
                     db.refresh(db_user)
-                    
                     logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} has removed the user {db_user.username} with id = {db_user.id} from the company {company.companyName}.')
                     return {"detail": "Account deleted successfully."}
-
                 # Case of company_user belonging to one company => delete user
                 else:
                     # Remove session tokens manually
                     db.query(SessionTokens).filter_by(user_id=db_user.id).delete()
                     db.commit()
-
                     # Remove validation tokens manually
                     db.query(ValidationTokens).filter_by(user_id=db_user.id).delete()
                     db.commit()
-
                     # Remove password reset tokens manually
                     db.query(PasswordResetTokens).filter_by(user_id=db_user.id).delete()
                     db.commit()
-                    
                     # Cleanly delete the user
                     with store_context(store):
                         db.delete(db_user)
                         db.commit()
-                    
                     logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} has successfully deleted the user {db_user.username} with id = {db_user.id}.')
                     return {"detail": "Account deleted successfully."}
         else:
@@ -434,48 +430,38 @@ async def delete_user(
             if db_user.company_id != requestor_db_user.company_id:
                 logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} of type = {current_user["type"]} from company with the id = {requestor_db_user.company_id} tried to delete the user {username} of type = {db_user.userType} belonging to the company = {db_user.company_id}.')
                 raise HTTPException(
-                    status_code=403, 
+                    status_code=403,
                     detail="Delete user account forbidden."
                 )
-
             # Remove session tokens manually
             db.query(SessionTokens).filter_by(user_id=db_user.id).delete()
             db.commit()
-
             # Remove validation tokens manually
             db.query(ValidationTokens).filter_by(user_id=db_user.id).delete()
             db.commit()
-
             # Remove password reset tokens manually
             db.query(PasswordResetTokens).filter_by(user_id=db_user.id).delete()
             db.commit()
-                    
             # Cleanly delete the user
             with store_context(store):
                 db.delete(db_user)
                 db.commit()
-                    
             logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} has successfully deleted the user {db_user.username} with id = {db_user.id}.')
             return {"detail": "Account deleted successfully."}
-
-    # 8. If the requestor is an admin => proceed to the removal of the user account
+    # 9. If the requestor is an admin => proceed to the removal of the user account
     # Remove session tokens manually
     db.query(SessionTokens).filter_by(user_id=db_user.id).delete()
     db.commit()
-
     # Remove validation tokens manually
     db.query(ValidationTokens).filter_by(user_id=db_user.id).delete()
     db.commit()
-
     # Remove password reset tokens manually
     db.query(PasswordResetTokens).filter_by(user_id=db_user.id).delete()
     db.commit()
-                    
     # Cleanly delete the user
     with store_context(store):
         db.delete(db_user)
         db.commit()
-                    
     logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} has successfully deleted the user {db_user.username} with id = {db_user.id}.')
     return {"detail": "Account deleted successfully."}
 
@@ -835,19 +821,17 @@ def add_client_user_to_company(
     # 8. Add company to the companies list of client_user
     if company not in db_user.companies:
         db_user.companies.append(company)
+        # Commit the changes to the database
+        db.commit()
+        db.refresh(db_user)
+        logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} successfully added the user {username} with id = {db_user.id} to the company {company.companyName} with id = {company_id}.')
     else:
-        logger.error(f"User {username} is already part of company_id {company_id}.")
-        raise HTTPException(
-            status_code=403,
-            detail="Add user to company forbidden."
-        )
+        logger.info(f"User {username} is already part of company_id {company_id}, no action needed.")
+        return {
+            "detail": f"User {username} is already part of the company {company.companyName} with id = {company_id}"
+        }
     
-    # 9. Commit the changes to the database
-    db.commit()
-    db.refresh(db_user)
-
-    # 10. Return to the user the updated username (email address)
-    logger.info(f'The user {current_user["username"]} with id = {current_user["id"]} successfully added the user {username} with id = {db_user.id} to the company {company.companyName} with id = {company_id}.')
+    # 9. Return to the user the updated username (email address)
     return {
         "detail": f"User {username} has successfully been added to the company {company.companyName} with id = {company_id}",
     }
@@ -968,10 +952,15 @@ def search_user(
             detail="Search request forbidden"
         )
 
-    # 2. Initialize the query
+    # 2. Forbid empty string searches
+    if not searched_user:
+        logger.error(f'User {current_user["username"]} attempted to search with an empty string.')
+        raise HTTPException(status_code=400, detail="Search query cannot be empty.")
+
+    # 3. Initialize the query
     query = db.query(Users)
     
-    # 3. Prepare the filters query depending on the number of words in the searched_user
+    # 4. Prepare the filters query depending on the number of words in the searched_user
     if searched_user:
         # Split the searched_user into parts
         parts = searched_user.split()
@@ -999,8 +988,8 @@ def search_user(
                 surname = " ".join(parts[:n])
                 filters.append(and_(Users.name.ilike(f"%{first_name}%"),Users.surname.ilike(f"%{surname}%")))
 
-    #4 Prepare the company and user type related extra filter depending on the searching user type    
-    # Get company of current user if company_admin, company_commercial or company_developper 
+    #5 Prepare the company and user type related extra filter depending on the searching user type    
+    ## Get company of current user if company_admin, company_commercial or company_developper 
     current_user_company = None
     same_company_required = False
     if current_user["type"] in {UserTypeEnum.company_admin, UserTypeEnum.company_commercial, UserTypeEnum.company_developper}:
@@ -1013,14 +1002,25 @@ def search_user(
         # Filter by userType to only include company_client users
         current_user_based_filter.append(Users.userType == UserTypeEnum.company_client)
  
-    # 5. Combine the filters with the current_user_based_filter
-    query = query.filter(and_(or_(*filters),and_(*current_user_based_filter)))
+    # 6. Combine the filters with the current_user_based_filter
+    #query = query.filter(and_(or_(*filters),and_(*current_user_based_filter)))
+    if filters:
+        combined_filter = or_(*filters)
+    else:
+        combined_filter = True
+
+    if current_user_based_filter:
+        user_based_filter = and_(*current_user_based_filter)
+    else:
+        user_based_filter = True
+
+    query = query.filter(and_(combined_filter, user_based_filter))
 
         
-    # 6. Execute the query and get the results
+    # 7. Execute the query and get the results
     resulting_users = query.all()
     
-    #7. Filter the results by company if the user is a company_admin, company_commercial or company_developper
+    # 8. Filter the results by company if the user is a company_admin, company_commercial or company_developper
     filtered_resulting_users = []
     if same_company_required and current_user_company is not None:
         for user in resulting_users :
@@ -1034,12 +1034,12 @@ def search_user(
         filtered_resulting_users= resulting_users
     
 
-    # 8. If no company is found, raise an HTTP exception
+    # 9. If no company is found, raise an HTTP exception
     if not filtered_resulting_users:
         logger.error(f'User {current_user["username"]} with id = {current_user["id"]} has requested a user that does not exist within the users it can search.')
         raise HTTPException(status_code=403, detail="No users found.")
     
-    # 9. Return the company details
+    # 10. Return the company details
     logger.info(f"Found {len(filtered_resulting_users)} companies matching the search criteria.")
     return {
         "users": [
@@ -1053,4 +1053,3 @@ def search_user(
             } for user in filtered_resulting_users
         ]
     }
-    #return {"users": [{"id": user.id, "username": user.username,"name":user.name,"surname":user.surname,"user_type":user.userType,"company": {[company.id for company in user.companies] if user.userType==UserTypeEnum.company_client } for user in resulting_users]}
