@@ -12,7 +12,7 @@ from sqlalchemy_imageattach.entity import store_context
 from PIL import Image
 from io import BytesIO
 from app.database import SessionLocal
-from app.auth import get_current_user, create_validation_token, send_validation_email, BACKEND_URL
+from app.auth import get_current_user, create_validation_token, send_validation_email, BACKEND_URL, FRONTEND_URL
 from app.logger import logger
 from app.models import (
     Users, UserPicture, UserTypeEnum, 
@@ -308,7 +308,7 @@ async def create_user(
     validation_token_str = create_validation_token(db, new_user.id)
     
     # 17. Send the validation email to the newly created user
-    validation_link = f"http://{BACKEND_URL}/auth/validate_email/{validation_token_str}"
+    validation_link = f"http://{FRONTEND_URL}/validate-email/{validation_token_str}"
     send_validation_email(new_user.username, validation_link)
 
     # 18. return the newly created user information to the user

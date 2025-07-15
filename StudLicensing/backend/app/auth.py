@@ -39,6 +39,7 @@ if not dotenv_path:
 # Retrieve environment variables.
 SECRET_KEY = os.getenv('SECRET_KEY')
 BACKEND_URL = os.getenv('BACKEND_URL', 'localhost:8000')
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'localhost:3000')
 SUPERADMIN_ACCOUNT_USERNAME=os.getenv('SUPERADMIN_ACCOUNT_USERNAME')
 SUPERADMIN_ACCOUNT_PASSWORD=os.getenv('SUPERADMIN_ACCOUNT_PASSWORD')
 
