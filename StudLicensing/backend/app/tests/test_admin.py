@@ -576,6 +576,8 @@ def test_create_user_with_long_domain_email(client, db_session):
 def test_delete_user_as_admin_success(client, db_session):
     """Test deleting a user as admin (should succeed)."""
     user = create_test_user(db_session, user_type=UserTypeEnum.company_admin)
+    # Ensure current_user ID is different from the user being deleted
+    client = override_user_type(client, UserTypeEnum.admin, user_id=999, username="admin@example.com")
     response = client.post(
         "/admin/delete_user",
         data={"username": user.username, "confirm_username": user.username}
@@ -629,15 +631,15 @@ def test_delete_nonexistent_user(client, db_session):
     assert response.json()["detail"] == "Delete user account forbidden."
 
 def test_delete_user_self_as_admin(client, db_session):
-    """Test deleting self as admin (should succeed as per current policy)."""
+    """Test deleting self as admin (should fail as per current policy)."""
     user = create_test_user(db_session, user_type=UserTypeEnum.admin)
     client = override_user_type(client, UserTypeEnum.admin, user_id=user.id, username=user.username)
     response = client.post(
         "/admin/delete_user",
         data={"username": user.username, "confirm_username": user.username}
     )
-    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
-    assert response.json()["detail"] == "Account deleted successfully."
+    assert response.status_code == 403, f"Expected 403, got {response.status_code}: {response.text}"
+    assert response.json()["detail"] == "Delete user account forbidden."
 
 def test_delete_user_with_multiple_companies_partial(client, db_session):
     """Test deleting a company client with multiple companies as company admin (should remove from company only)."""
@@ -670,6 +672,8 @@ def test_delete_user_with_active_tokens(client, db_session):
     )
     db_session.add(token)
     db_session.commit()
+    # Ensure current_user ID is different from the user being deleted
+    client = override_user_type(client, UserTypeEnum.admin, user_id=999, username="admin@example.com")
     response = client.post(
         "/admin/delete_user",
         data={"username": user.username, "confirm_username": user.username}
@@ -678,7 +682,7 @@ def test_delete_user_with_active_tokens(client, db_session):
     assert db_session.query(SessionTokens).filter_by(user_id=user.id).first() is None, "Tokens should be deleted"
 
 def test_delete_user_self_as_non_admin(client, db_session):
-    """Test deleting self as non-admin (should fail as per current policy)."""
+    """Test deleting self as non-admin (should succeed as per current policy)."""
     company = create_test_company(db_session)
     user = create_test_user(db_session, user_type=UserTypeEnum.company_admin, company_id=company.id)
     client = override_user_type(client, UserTypeEnum.company_admin, user_id=user.id, username=user.username)
@@ -686,8 +690,8 @@ def test_delete_user_self_as_non_admin(client, db_session):
         "/admin/delete_user",
         data={"username": user.username, "confirm_username": user.username}
     )
-    assert response.status_code == 403, f"Expected 403, got {response.status_code}: {response.text}"
-    assert response.json()["detail"] == "Delete user account forbidden."
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    assert response.json()["detail"] == "Account deleted successfully."
 
 # ===========================================
 # Tests for /admin/update_username Endpoint
