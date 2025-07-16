@@ -809,7 +809,7 @@ async def forgot_password(
         reset_token = create_password_reset_token(db, user.id)
 
         # Send the password reset token to the user
-        reset_link = f"http://{BACKEND_URL}/auth/reset_password/{reset_token}"
+        reset_link = f"http://{FRONTEND_URL}/reset-password/{reset_token}"
         send_password_reset_email(user.username, reset_link)
         logger.info(f'Password reset token has been sent to the user {user.username}.')
     else:
