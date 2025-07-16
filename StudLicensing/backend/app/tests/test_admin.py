@@ -9,7 +9,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.database import Base
-from app.models import Company, Users, UserTypeEnum, CompanyAdmin, CompanyClient, CompanyCommercial, CompanyDevelopper, Admin, SessionTokens
+from app.models import Company, Users, UserTypeEnum, CompanyAdmin, CompanyClient, CompanyCommercial, CompanyDevelopper, Admin, SessionTokens, companies_clients_correspondance
 from app.admin import router, get_db
 from app.auth import get_current_user
 from fastapi import FastAPI
@@ -51,6 +51,9 @@ def db_session(engine):
     # Clear all relevant tables before the test to ensure a clean state
     for table in [Users, Company, CompanyAdmin, CompanyClient, CompanyCommercial, CompanyDevelopper, Admin, SessionTokens]:
         session.query(table).delete()
+    
+    # also clear the client–company pivot table
+    session.execute(companies_clients_correspondance.delete())
     session.commit()
     yield session
     session.rollback()
@@ -1293,3 +1296,24 @@ def test_search_user_with_unicode_characters(client, db_session):
     result = users[0]
     assert result["name"] == "Тест"
     assert result["company_title"] is None
+
+def test_search_user_client_with_multiple_companies_only_shows_one(client, db_session):
+    c1 = create_test_company(db_session, name="C1")
+    c2 = create_test_company(db_session, name="C2")
+    client_user = create_test_user(db_session, user_type=UserTypeEnum.company_client, company_id=c1.id)
+    client_user.companies.append(c2)
+    db_session.commit()
+
+    # make the caller a company_admin of C1
+    admin = create_test_user(db_session, user_type=UserTypeEnum.company_admin, company_id=c1.id)
+    client = override_user_type(client, UserTypeEnum.company_admin, user_id=admin.id, username=admin.username)
+
+    # search for that client
+    resp = client.post("/admin/search_user", data={"searched_user": client_user.username})
+    assert resp.status_code == 200
+    users = resp.json()["users"]
+    assert len(users) == 1
+    u = users[0]
+    # it should only show C1, not C2
+    assert u["company"] == [c1.id]
+    assert u["company_title"] == [c1.companyName]
