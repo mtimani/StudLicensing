@@ -27,7 +27,7 @@ import {
 import { Add, Edit, Delete, Search } from "@mui/icons-material"
 import { useApi } from "../../contexts/ApiContext"
 
-// Sort helper functions
+// ---------- Sort helpers ----------
 const descendingComparator = (a, b, orderBy) => {
   const valA = (a[orderBy] ?? "").toString().toLowerCase()
   const valB = (b[orderBy] ?? "").toString().toLowerCase()
@@ -76,7 +76,6 @@ const CompanyManagement = () => {
     setLoading(true)
     setError("")
     try {
-      // Build URL-encoded form body
       const params = new URLSearchParams()
       if (searchTerm) params.append('company_name', searchTerm)
 
@@ -100,14 +99,96 @@ const CompanyManagement = () => {
     }
   }
 
-  // CRUD handlers (omitted for brevity)
-  const handleCreateCompany = async e => { /* ... */ }
-  const handleUpdateCompany = async e => { /* ... */ }
-  const handleDeleteCompany = async () => { /* ... */ }
+  // --- Create Company ---
+  const handleCreateCompany = async (e) => {
+    e.preventDefault()
+    setError("")
+    setSuccess("")
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.append("companyName", newCompanyName)
+      const res = await apiCall("/company/create", {
+        method: "POST",
+        body: params.toString(),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      })
+      if (res.ok) {
+        setSuccess("Company created successfully!")
+        setCreateDialog(false)
+        setNewCompanyName("")
+        searchCompanies()
+      } else {
+        const err = await res.json()
+        setError(err.detail || "Failed to create company")
+      }
+    } catch {
+      setError("Network error. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // --- Update Company ---
+  const handleUpdateCompany = async (e) => {
+    e.preventDefault()
+    setError("")
+    setSuccess("")
+    setLoading(true)
+    try {
+      const params = new URLSearchParams()
+      params.append("companyName", selectedCompany.name)
+      const res = await apiCall(`/company/update/${selectedCompany.id}`, {
+        method: "PUT",
+        body: params.toString(),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      })
+      if (res.ok) {
+        setSuccess("Company updated successfully!")
+        setEditDialog(false)
+        setSelectedCompany(null)
+        searchCompanies()
+      } else {
+        const err = await res.json()
+        setError(err.detail || "Failed to update company")
+      }
+    } catch {
+      setError("Network error. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // --- Delete Company ---
+  const handleDeleteCompany = async (e) => {
+    if (e) e.preventDefault()
+    setError("")
+    setSuccess("")
+    setLoading(true)
+    try {
+      const res = await apiCall(`/company/delete/${selectedCompany.id}`, {
+        method: "DELETE"
+      })
+      if (res.ok) {
+        setSuccess("Company deleted successfully!")
+        setDeleteDialog(false)
+        setSelectedCompany(null)
+        searchCompanies()
+      } else {
+        const err = await res.json()
+        setError(err.detail || "Failed to delete company")
+      }
+    } catch {
+      setError("Network error. Please try again.")
+    } finally {
+      setLoading(false)
+    }
+  }
 
   // Perform search on initial load and whenever searchTerm changes
   useEffect(() => {
     searchCompanies()
+    // eslint-disable-next-line
   }, [searchTerm])
 
   // Sorting handler
@@ -194,10 +275,22 @@ const CompanyManagement = () => {
                   <TableCell>{c.company_id}</TableCell>
                   <TableCell>{c.company_name}</TableCell>
                   <TableCell>
-                    <IconButton onClick={() => { setSelectedCompany({ id: c.company_id, name: c.company_name }); setEditDialog(true) }} color="success">
+                    <IconButton
+                      onClick={() => {
+                        setSelectedCompany({ id: c.company_id, name: c.company_name })
+                        setEditDialog(true)
+                      }}
+                      color="success"
+                    >
                       <Edit />
                     </IconButton>
-                    <IconButton onClick={() => { setSelectedCompany({ id: c.company_id, name: c.company_name }); setDeleteDialog(true) }} color="error">
+                    <IconButton
+                      onClick={() => {
+                        setSelectedCompany({ id: c.company_id, name: c.company_name })
+                        setDeleteDialog(true)
+                      }}
+                      color="error"
+                    >
                       <Delete />
                     </IconButton>
                   </TableCell>
