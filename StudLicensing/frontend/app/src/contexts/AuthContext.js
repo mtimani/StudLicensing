@@ -13,7 +13,7 @@ export const useAuth = () => {
 
 const getRoleDisplayName = (role) => {
   const roleMap = {
-    admin: "Administrator",
+    admin: "Global Administrator",
     company_admin: "Company Administrator",
     company_developper: "Company Developer",
     company_commercial: "Company Commercial",
