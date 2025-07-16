@@ -73,6 +73,10 @@ const UserManagement = () => {
   const { apiCall } = useApi()
   const { hasRole } = useAuth()
   const isAdmin = hasRole(["admin"])
+  const canOnlyCreateClient = hasRole(["company_developper", "company_commercial"])
+  const isLimitedRole = hasRole(["company_developper", "company_commercial"])
+  const isCompanyAdmin = hasRole(["company_admin"])
+  const isGlobalAdmin = hasRole(["admin"])
 
   // ---------- State ----------
   const [users, setUsers] = useState([])
@@ -157,19 +161,18 @@ const UserManagement = () => {
     setError("")
     setSuccess("")
     try {
-      // Build formData (multipart/form-data) as required by /admin/account_create
       const formData = new FormData()
       formData.append("username", newUser.username)
       formData.append("name", newUser.name)
       formData.append("surname", newUser.surname)
       formData.append("user_type", newUser.user_type)
-      if (newUser.company_id) formData.append("company_id", newUser.company_id)
-      // Skipping profilePicture for now; add if you have file upload
+      if (isGlobalAdmin && newUser.company_id) {
+        formData.append("company_id", newUser.company_id)
+      }
 
       const res = await apiCall("/admin/account_create", {
         method: "POST",
         body: formData,
-        // Do NOT set Content-Type, let browser handle it for FormData!
       })
       if (res.ok || res.status === 201) {
         setSuccess("User created!")
@@ -196,7 +199,7 @@ const UserManagement = () => {
     try {
       const params = new URLSearchParams()
       params.append("username", selectedUser.username)
-      params.append("confirm_username", selectedUser.username)  // confirm required by schema
+      params.append("confirm_username", selectedUser.username)
       if (selectedUser.name) params.append("name", selectedUser.name)
       if (selectedUser.surname) params.append("surname", selectedUser.surname)
 
@@ -230,7 +233,7 @@ const UserManagement = () => {
     try {
       const params = new URLSearchParams()
       params.append("username", selectedUser.username)
-      params.append("confirm_username", selectedUser.username) // confirm required by schema
+      params.append("confirm_username", selectedUser.username)
 
       const res = await apiCall("/admin/delete_user", {
         method: "POST",
@@ -464,7 +467,9 @@ const UserManagement = () => {
                   >{headCell.label}</TableSortLabel>
                 </TableCell>
               ))}
-              <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
+              {!canOnlyCreateClient && (
+                <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -486,27 +491,30 @@ const UserManagement = () => {
                         <Chip key={idx} label={t} size="small" variant="outlined" sx={{ mr: 0.5, mb: 0.5 }} />
                       )) : '–'}
                     </TableCell>
-                    <TableCell>
-                      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
-                        <Tooltip title="Edit">
-                          <IconButton color="success" onClick={() => { setSelectedUser(user); setEditDialog(true) }}>
-                            <Edit />
-                          </IconButton>
-                        </Tooltip>
-                        {isAdmin && (
-                          <Tooltip title="More actions">
-                            <IconButton color="primary" onClick={e => handleOpenGearMenu(e, user)}>
-                              <Settings />
+                    {!canOnlyCreateClient && (
+                      <TableCell>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1 }}>
+                          {/* Your action buttons here, as previously filtered */}
+                          <Tooltip title="Edit">
+                            <IconButton color="success" onClick={() => { setSelectedUser(user); setEditDialog(true) }}>
+                              <Edit />
                             </IconButton>
                           </Tooltip>
-                        )}
-                        <Tooltip title="Delete">
-                          <IconButton color="error" onClick={() => { setSelectedUser(user); setDeleteDialog(true) }}>
-                            <Delete />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </TableCell>
+                          {isAdmin && (
+                            <Tooltip title="More actions">
+                              <IconButton color="primary" onClick={e => handleOpenGearMenu(e, user)}>
+                                <Settings />
+                              </IconButton>
+                            </Tooltip>
+                          )}
+                          <Tooltip title="Delete">
+                            <IconButton color="error" onClick={() => { setSelectedUser(user); setDeleteDialog(true) }}>
+                              <Delete />
+                            </IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    )}
                   </TableRow>
                 )
               })
@@ -583,8 +591,46 @@ const UserManagement = () => {
             <TextField margin="normal" fullWidth label="Email" type="email" value={newUser.username} onChange={(e) => setNewUser({ ...newUser, username: e.target.value })} required />
             <TextField margin="normal" fullWidth label="First Name" value={newUser.name} onChange={(e) => setNewUser({ ...newUser, name: e.target.value })} required />
             <TextField margin="normal" fullWidth label="Last Name" value={newUser.surname} onChange={(e) => setNewUser({ ...newUser, surname: e.target.value })} required />
-            <FormControl fullWidth margin="normal"><InputLabel>User Type</InputLabel><Select value={newUser.user_type} onChange={(e) => setNewUser({ ...newUser, user_type: e.target.value })} label="User Type">{userTypes.map(type => <MenuItem key={type} value={type}>{userTypeLabels[type]}</MenuItem>)}</Select></FormControl>
-            <TextField margin="normal" fullWidth label="Company ID (optional)" type="number" value={newUser.company_id} onChange={(e) => setNewUser({ ...newUser, company_id: e.target.value })} />
+            {/* User Type Dropdown */}
+            <FormControl fullWidth margin="normal">
+              <InputLabel>User Type</InputLabel>
+              <Select
+                value={newUser.user_type}
+                onChange={(e) => setNewUser({ ...newUser, user_type: e.target.value })}
+                label="User Type"
+              >
+                {canOnlyCreateClient ? (
+                  <MenuItem value="company_client">{userTypeLabels["company_client"]}</MenuItem>
+                ) : isCompanyAdmin ? (
+                  userTypes
+                    .filter(type => type !== "all_types" && type !== "global_admin")
+                    .map(type => (
+                      <MenuItem key={type} value={type}>
+                        {userTypeLabels[type]}
+                      </MenuItem>
+                    ))
+                ) : (
+                  userTypes
+                    .filter(type => type !== "all_types")
+                    .map(type => (
+                      <MenuItem key={type} value={type}>
+                        {userTypeLabels[type]}
+                      </MenuItem>
+                    ))
+                )}
+              </Select>
+            </FormControl>
+            {/* Company ID field is visible ONLY for logged-in Global Admins */}
+            {isGlobalAdmin && (
+              <TextField
+                margin="normal"
+                fullWidth
+                label="Company ID"
+                type="number"
+                value={newUser.company_id}
+                onChange={(e) => setNewUser({ ...newUser, company_id: e.target.value })}
+              />
+            )}
           </DialogContent>
           <DialogActions sx={{ p: 3 }}><Button onClick={() => setCreateDialog(false)}>Cancel</Button><Button type="submit" variant="contained" disabled={loading}>{loading ? <CircularProgress size={24} /> : "Create"}</Button></DialogActions>
         </form>
