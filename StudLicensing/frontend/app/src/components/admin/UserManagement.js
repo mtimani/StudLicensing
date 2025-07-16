@@ -92,7 +92,14 @@ const UserManagement = () => {
   const [editDialog, setEditDialog] = useState(false)
   const [deleteDialog, setDeleteDialog] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
-  const [newUser, setNewUser] = useState({ username: "", name: "", surname: "", user_type: "company_client", company_id: "" })
+  const defaultUserType = isGlobalAdmin ? "admin" : "company_client"
+  const [newUser, setNewUser] = useState({
+    username: "",
+    name: "",
+    surname: "",
+    user_type: defaultUserType,
+    company_id: ""
+  })
 
   // --- Admin-only dialog states ---
   const [updateEmailDialog, setUpdateEmailDialog] = useState(false)
@@ -165,7 +172,12 @@ const UserManagement = () => {
       formData.append("username", newUser.username)
       formData.append("name", newUser.name)
       formData.append("surname", newUser.surname)
-      formData.append("user_type", newUser.user_type)
+      
+      const typeToSend = newUser.user_type === "global_admin"
+        ? "admin"
+        : newUser.user_type;
+      formData.append("user_type", typeToSend)
+      
       if (isGlobalAdmin && newUser.company_id) {
         formData.append("company_id", newUser.company_id)
       }
