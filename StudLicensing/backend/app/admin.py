@@ -1047,7 +1047,12 @@ def search_user(
                 "name": user.name,
                 "surname": user.surname,
                 "user_type": user.userType,
-                "company": [company.id for company in user.companies] if user.userType == UserTypeEnum.company_client else getattr(user, "company_id", None)
+                "company": [company.id for company in user.companies] if user.userType == UserTypeEnum.company_client else getattr(user, "company_id", None),
+                "company_title": [company.companyName for company in user.companies] if user.userType == UserTypeEnum.company_client else (
+                        user.company.companyName
+                        if hasattr(user, "company") and user.company
+                        else None
+                    )
             } for user in filtered_resulting_users
         ]
     }
