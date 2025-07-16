@@ -1038,21 +1038,41 @@ def search_user(
         raise HTTPException(status_code=403, detail="No users found.")
     
     # 10. Return the company details
-    logger.info(f"Found {len(filtered_resulting_users)} companies matching the search criteria.")
-    return {
-        "users": [
-            {
-                "id": user.id,
-                "username": user.username,
-                "name": user.name,
-                "surname": user.surname,
-                "user_type": user.userType,
-                "company": [company.id for company in user.companies] if user.userType == UserTypeEnum.company_client else getattr(user, "company_id", None),
-                "company_title": [company.companyName for company in user.companies] if user.userType == UserTypeEnum.company_client else (
-                        user.company.companyName
-                        if hasattr(user, "company") and user.company
-                        else None
-                    )
-            } for user in filtered_resulting_users
-        ]
-    }
+    logger.info(f"Found {len(filtered_resulting_users)} users matching the search criteria.")
+
+    users_payload = []
+    for user in filtered_resulting_users:
+        if user.userType == UserTypeEnum.company_client:
+            # if the caller is NOT a top‑level admin, only show their own company
+            if current_user["type"] != UserTypeEnum.admin:
+                # current_user_company was set above when same_company_required=True
+                visible_companies = [
+                    c for c in user.companies
+                    if c.id == current_user_company
+                ]
+            else:
+                visible_companies = list(user.companies)
+
+            company_ids = [c.id for c in visible_companies]
+            company_titles = [c.companyName for c in visible_companies]
+
+        else:
+            # for all other user types, company_id is a single scalar
+            company_ids = getattr(user, "company_id", None)
+            company_titles = (
+                user.company.companyName
+                if hasattr(user, "company") and user.company
+                else None
+            )
+
+        users_payload.append({
+            "id": user.id,
+            "username": user.username,
+            "name": user.name,
+            "surname": user.surname,
+            "user_type": user.userType,
+            "company": company_ids,
+            "company_title": company_titles
+        })
+
+    return {"users": users_payload}
