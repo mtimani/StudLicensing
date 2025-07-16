@@ -18,6 +18,7 @@ services:
       sh -c "npm install && npm start"
     depends_on:
       - backend
+      
   backend:
     container_name: fastapi-backend
     build:
