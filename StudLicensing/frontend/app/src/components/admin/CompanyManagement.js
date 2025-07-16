@@ -194,7 +194,7 @@ const CompanyManagement = () => {
                   <TableCell>{c.company_id}</TableCell>
                   <TableCell>{c.company_name}</TableCell>
                   <TableCell>
-                    <IconButton onClick={() => { setSelectedCompany({ id: c.company_id, name: c.company_name }); setEditDialog(true) }}>
+                    <IconButton onClick={() => { setSelectedCompany({ id: c.company_id, name: c.company_name }); setEditDialog(true) }} color="success">
                       <Edit />
                     </IconButton>
                     <IconButton onClick={() => { setSelectedCompany({ id: c.company_id, name: c.company_name }); setDeleteDialog(true) }} color="error">
