@@ -1269,14 +1269,17 @@ def test_search_user_with_special_characters(client, db_session):
     assert response.status_code == 403, f"Expected 403 (or 200 if special chars are handled), got {response.status_code}: {response.text}"
 
 def test_search_user_empty_string(client, db_session):
-    """Test searching with an empty string (should fail)."""
+    """Test searching with an empty string (should succeed and return all users)."""
     create_test_user(db_session, user_type=UserTypeEnum.company_admin)
     response = client.post(
         "/admin/search_user",
         data={"searched_user": ""}
     )
-    assert response.status_code == 400, f"Expected 400, got {response.status_code}: {response.text}"
-    assert response.json()["detail"] == "Search query cannot be empty."
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    # should return the single created user
+    assert "users" in response.json(), "Response must include a users list"
+    assert len(response.json()["users"]) == 1, f"Expected 1 user, got {len(response.json()['users'])}"
+    assert response.json()["users"][0]["username"] is not None
 
 def test_search_user_very_long_string(client, db_session):
     """Test searching with a very long string (should handle gracefully)."""

@@ -952,19 +952,17 @@ def search_user(
             detail="Search request forbidden"
         )
 
-    # 2. Forbid empty string searches
-    if not searched_user:
-        logger.error(f'User {current_user["username"]} attempted to search with an empty string.')
-        raise HTTPException(status_code=400, detail="Search query cannot be empty.")
+    # 2. Allow empty string searches ⇒ normalize None/blank to ""
+    searched_user = (searched_user or "").strip()
 
     # 3. Initialize the query
     query = db.query(Users)
     
     # 4. Prepare the filters query depending on the number of words in the searched_user
+    filters = []
     if searched_user:
         # Split the searched_user into parts
         parts = searched_user.split()
-        filters = []
         if len(parts) == 1:     
             # If only one part is provided, search by email or first name or surname
             filters.append(Users.username.ilike(f"%{searched_user}%"))
@@ -1049,7 +1047,7 @@ def search_user(
                 "name": user.name,
                 "surname": user.surname,
                 "user_type": user.userType,
-                "company": [company.id for company in user.companies] if user.userType == UserTypeEnum.company_client else user.company_id
+                "company": [company.id for company in user.companies] if user.userType == UserTypeEnum.company_client else getattr(user, "company_id", None)
             } for user in filtered_resulting_users
         ]
     }
