@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import { useEffect } from "react"
 
 import { useState } from "react"
 import { useNavigate } from "react-router-dom"
@@ -44,14 +44,27 @@ const ProfilePage = () => {
   })
   const [passwordError, setPasswordError] = useState("")
   const [initialized, setInitialized] = useState(false)
+  const [profileErrorTimeout, setProfileErrorTimeout] = useState(null)
+  const [passwordErrorTimeout, setPasswordErrorTimeout] = useState(null)
   const { user } = useAuth()
   const { apiCall } = useApi()
   const { profileInfo, profilePicture, updateProfileInfo, updateProfilePicture } = useProfile()
   const navigate = useNavigate()
   const theme = useTheme()
 
+  const clearErrorAfterTimeout = (setErrorFn, timeoutRef, setTimeoutRef) => {
+    if (timeoutRef) {
+      clearTimeout(timeoutRef)
+    }
+    const timeout = setTimeout(() => {
+      setErrorFn("")
+      setTimeoutRef(null)
+    }, 10000)
+    setTimeoutRef(timeout)
+  }
+
   // Initialize local state when profileInfo is loaded
-  React.useEffect(() => {
+  useEffect(() => {
     if (profileInfo.name || profileInfo.surname) {
       setLocalProfileInfo({
         name: profileInfo.name,
@@ -73,6 +86,7 @@ const ProfilePage = () => {
       setSuccess("Profile updated successfully")
     } else {
       setError(result.error)
+      clearErrorAfterTimeout(setError, profileErrorTimeout, setProfileErrorTimeout)
     }
     setLoading(false)
   }
@@ -91,6 +105,7 @@ const ProfilePage = () => {
       setSuccess("Profile picture updated successfully")
     } else {
       setError(result.error)
+      clearErrorAfterTimeout(setError, profileErrorTimeout, setProfileErrorTimeout)
     }
     setLoading(false)
   }
@@ -124,14 +139,25 @@ const ProfilePage = () => {
         setPasswordData({ oldPassword: "", newPassword: "", confirmPassword: "" })
       } else {
         const errorData = await response.json()
-        setPasswordError(errorData.detail || "Failed to change password")
+        const errorMessage = errorData.detail || "Failed to change password"
+        setPasswordError(errorMessage)
+        clearErrorAfterTimeout(setPasswordError, passwordErrorTimeout, setPasswordErrorTimeout)
       }
     } catch (err) {
-      setPasswordError("Network error. Please try again.")
+      const errorMessage = "Network error. Please try again."
+      setPasswordError(errorMessage)
+      clearErrorAfterTimeout(setPasswordError, passwordErrorTimeout, setPasswordErrorTimeout)
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    return () => {
+      if (profileErrorTimeout) clearTimeout(profileErrorTimeout)
+      if (passwordErrorTimeout) clearTimeout(passwordErrorTimeout)
+    }
+  }, [profileErrorTimeout, passwordErrorTimeout])
 
   if (!initialized) {
     return (

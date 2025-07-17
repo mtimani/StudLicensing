@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import {
   Container,
@@ -20,7 +20,19 @@ const ForgotPasswordPage = () => {
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState("")
+  const [errorTimeout, setErrorTimeout] = useState(null)
   const { apiCall } = useApi()
+
+  const clearErrorAfterTimeout = () => {
+    if (errorTimeout) {
+      clearTimeout(errorTimeout)
+    }
+    const timeout = setTimeout(() => {
+      setError("")
+      setErrorTimeout(null)
+    }, 10000)
+    setErrorTimeout(timeout)
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -40,14 +52,26 @@ const ForgotPasswordPage = () => {
         setSuccess(true)
       } else {
         const errorData = await response.json()
-        setError(errorData.detail || "Failed to send reset email")
+        const errorMessage = errorData.detail || "Failed to send reset email"
+        setError(errorMessage)
+        clearErrorAfterTimeout()
       }
     } catch (err) {
-      setError("Network error. Please try again.")
+      const errorMessage = "Network error. Please try again."
+      setError(errorMessage)
+      clearErrorAfterTimeout()
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    return () => {
+      if (errorTimeout) {
+        clearTimeout(errorTimeout)
+      }
+    }
+  }, [errorTimeout])
 
   return (
     <Box

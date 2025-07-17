@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import {
   Container,
@@ -21,8 +21,20 @@ const ResetPasswordPage = () => {
   const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [errorTimeout, setErrorTimeout] = useState(null)
   const { apiCall } = useApi()
   const navigate = useNavigate()
+
+  const clearErrorAfterTimeout = () => {
+    if (errorTimeout) {
+      clearTimeout(errorTimeout)
+    }
+    const timeout = setTimeout(() => {
+      setError("")
+      setErrorTimeout(null)
+    }, 10000)
+    setErrorTimeout(timeout)
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -52,14 +64,26 @@ const ResetPasswordPage = () => {
         })
       } else {
         const errorData = await response.json()
-        setError(errorData.detail || "Password reset failed")
+        const errorMessage = errorData.detail || "Password reset failed"
+        setError(errorMessage)
+        clearErrorAfterTimeout()
       }
     } catch (err) {
-      setError("Network error. Please try again.")
+      const errorMessage = "Network error. Please try again."
+      setError(errorMessage)
+      clearErrorAfterTimeout()
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    return () => {
+      if (errorTimeout) {
+        clearTimeout(errorTimeout)
+      }
+    }
+  }, [errorTimeout])
 
   return (
     <Box

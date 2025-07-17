@@ -21,6 +21,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [errorTimeout, setErrorTimeout] = useState(null)
   const [searchParams] = useSearchParams()
   const { login, isAuthenticated } = useAuth()
   const { apiCall } = useApi()
@@ -39,10 +40,26 @@ const LoginPage = () => {
     }
   }, [searchParams])
 
+  const clearErrorAfterTimeout = () => {
+    if (errorTimeout) {
+      clearTimeout(errorTimeout)
+    }
+    const timeout = setTimeout(() => {
+      setError("")
+      setErrorTimeout(null)
+    }, 10000)
+    setErrorTimeout(timeout)
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError("")
+
+    if (errorTimeout) {
+      clearTimeout(errorTimeout)
+      setErrorTimeout(null)
+    }
 
     try {
       const formData = new FormData()
@@ -59,15 +76,35 @@ const LoginPage = () => {
         login(data.access_token)
         navigate("/dashboard")
       } else {
-        const errorData = await response.json()
-        setError(errorData.detail || "Login failed")
+        // Handle non-200 responses - parse the error from backend
+        try {
+          const errorData = await response.json()
+          const errorMessage = errorData.detail || "Login failed"
+          setError(errorMessage)
+          clearErrorAfterTimeout()
+        } catch (parseError) {
+          // If we can't parse the error response, show a generic message
+          setError("Login failed. Please check your credentials.")
+          clearErrorAfterTimeout()
+        }
       }
     } catch (err) {
-      setError("Network error. Please try again.")
+      // Only network/connection errors should reach here
+      const errorMessage = "Network error. Please check your connection and try again."
+      setError(errorMessage)
+      clearErrorAfterTimeout()
     } finally {
       setLoading(false)
     }
   }
+
+  useEffect(() => {
+    return () => {
+      if (errorTimeout) {
+        clearTimeout(errorTimeout)
+      }
+    }
+  }, [errorTimeout])
 
   return (
     <Box

@@ -136,6 +136,11 @@ const UserManagement = () => {
   // Local filtering for add user to company
   const [filteredCompanyOptions, setFilteredCompanyOptions] = useState([])
 
+  const [createError, setCreateError] = useState("")
+  const [editError, setEditError] = useState("")
+  const [createErrorTimeout, setCreateErrorTimeout] = useState(null)
+  const [editErrorTimeout, setEditErrorTimeout] = useState(null)
+
   // ---------- User Types ----------
   const userTypes = [
     "all_types",
@@ -185,6 +190,17 @@ const UserManagement = () => {
     }
   }
 
+  const clearErrorAfterTimeout = (setErrorFn, timeoutRef, setTimeoutRef) => {
+    if (timeoutRef) {
+      clearTimeout(timeoutRef)
+    }
+    const timeout = setTimeout(() => {
+      setErrorFn("")
+      setTimeoutRef(null)
+    }, 10000)
+    setTimeoutRef(timeout)
+  }
+
   // ---------- Client-side filtering ----------
   const filteredUsers = useMemo(() => {
     return allUsers.filter((user) => {
@@ -230,8 +246,14 @@ const UserManagement = () => {
   const handleCreateUser = async (e) => {
     e.preventDefault()
     setLoading(true)
-    setError("")
+    setCreateError("")
     setSuccess("")
+
+    if (createErrorTimeout) {
+      clearTimeout(createErrorTimeout)
+      setCreateErrorTimeout(null)
+    }
+
     try {
       const formData = new FormData()
       formData.append("username", newUser.username)
@@ -253,15 +275,18 @@ const UserManagement = () => {
         setSuccess("User created!")
         setCreateDialog(false)
         setNewUser({ username: "", name: "", surname: "", user_type: "company_client", company_id: "" })
-        // Reset the loaded flag to force refresh
         usersLoaded.current = false
         fetchAllUsers()
       } else {
         const err = await res.json()
-        setError(err.detail || "Failed to create user")
+        const errorMessage = err.detail || "Failed to create user"
+        setCreateError(errorMessage)
+        clearErrorAfterTimeout(setCreateError, createErrorTimeout, setCreateErrorTimeout)
       }
     } catch {
-      setError("Network error.")
+      const errorMessage = "Network error. Please try again."
+      setCreateError(errorMessage)
+      clearErrorAfterTimeout(setCreateError, createErrorTimeout, setCreateErrorTimeout)
     } finally {
       setLoading(false)
     }
@@ -271,8 +296,14 @@ const UserManagement = () => {
   const handleUpdateUser = async (e) => {
     e.preventDefault()
     setLoading(true)
-    setError("")
+    setEditError("")
     setSuccess("")
+
+    if (editErrorTimeout) {
+      clearTimeout(editErrorTimeout)
+      setEditErrorTimeout(null)
+    }
+
     try {
       const params = new URLSearchParams()
       params.append("username", selectedUser.username)
@@ -289,15 +320,18 @@ const UserManagement = () => {
         setSuccess("User updated!")
         setEditDialog(false)
         setSelectedUser(null)
-        // Reset the loaded flag to force refresh
         usersLoaded.current = false
         fetchAllUsers()
       } else {
         const err = await res.json()
-        setError(err.detail || "Failed to update user")
+        const errorMessage = err.detail || "Failed to update user"
+        setEditError(errorMessage)
+        clearErrorAfterTimeout(setEditError, editErrorTimeout, setEditErrorTimeout)
       }
     } catch {
-      setError("Network error.")
+      const errorMessage = "Network error. Please try again."
+      setEditError(errorMessage)
+      clearErrorAfterTimeout(setEditError, editErrorTimeout, setEditErrorTimeout)
     } finally {
       setLoading(false)
     }
@@ -486,9 +520,7 @@ const UserManagement = () => {
           const userCompanyNames = addDialogUserCompanyTitles.current
 
           const filtered = allCompanies.filter(
-            (c) =>
-              !userCompanyIds.includes(c.company_id) &&
-              !userCompanyNames.includes(c.company_name)
+            (c) => !userCompanyIds.includes(c.company_id) && !userCompanyNames.includes(c.company_name),
           )
 
           setCompanyOptions(filtered)
@@ -502,7 +534,7 @@ const UserManagement = () => {
           const allowedTitles = removeDialogUserCompanyTitles.current
 
           const filtered = allCompanies.filter(
-            (c) => allowedIds.includes(c.company_id) || allowedTitles.includes(c.company_name)
+            (c) => allowedIds.includes(c.company_id) || allowedTitles.includes(c.company_name),
           )
 
           setCompanyOptions(filtered)
@@ -510,7 +542,6 @@ const UserManagement = () => {
           setCompanySearchTerm("")
           setCompanyActionData((prev) => ({ ...prev, company_id: "" }))
         }
-
       } catch {
         setCompanyOptions([])
         setFilteredCompanyOptions([])
@@ -528,9 +559,7 @@ const UserManagement = () => {
   useEffect(() => {
     const term = companySearchTerm.toLowerCase()
     const filtered = companyOptions.filter(
-      (c) =>
-        c.company_name?.toLowerCase().includes(term) ||
-        c.company_id?.toString().includes(term)
+      (c) => c.company_name?.toLowerCase().includes(term) || c.company_id?.toString().includes(term),
     )
     setFilteredCompanyOptions(filtered)
   }, [companySearchTerm, companyOptions])
@@ -917,6 +946,11 @@ const UserManagement = () => {
             </Typography>
           </DialogTitle>
           <DialogContent>
+            {createError && (
+              <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                {createError}
+              </Alert>
+            )}
             <TextField
               margin="normal"
               fullWidth
@@ -1005,6 +1039,11 @@ const UserManagement = () => {
             </Typography>
           </DialogTitle>
           <DialogContent>
+            {editError && (
+              <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                {editError}
+              </Alert>
+            )}
             {selectedUser && (
               <>
                 <TextField margin="normal" fullWidth label="Email" value={selectedUser.username} disabled />
@@ -1154,19 +1193,13 @@ const UserManagement = () => {
             )}
             <Autocomplete
               options={filteredCompanyOptions}
-              getOptionLabel={(option) =>
-                option.company_name || `Company #${option.company_id}`
-              }
+              getOptionLabel={(option) => option.company_name || `Company #${option.company_id}`}
               loading={companySearchLoading}
               inputValue={companySearchTerm}
               onInputChange={(event, newInputValue) => {
                 setCompanySearchTerm(newInputValue)
               }}
-              value={
-                filteredCompanyOptions.find(
-                  (opt) => opt.company_id === companyActionData.company_id
-                ) || null
-              }
+              value={filteredCompanyOptions.find((opt) => opt.company_id === companyActionData.company_id) || null}
               onChange={(event, newValue) => {
                 setCompanyActionData((prev) => ({
                   ...prev,
@@ -1174,13 +1207,7 @@ const UserManagement = () => {
                 }))
               }}
               renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Search and Select Company"
-                  margin="normal"
-                  fullWidth
-                  required
-                />
+                <TextField {...params} label="Search and Select Company" margin="normal" fullWidth required />
               )}
             />
             {companySearchError && (
@@ -1227,19 +1254,13 @@ const UserManagement = () => {
             )}
             <Autocomplete
               options={filteredCompanyOptions}
-              getOptionLabel={(option) =>
-                option.company_name || `Company #${option.company_id}`
-              }
+              getOptionLabel={(option) => option.company_name || `Company #${option.company_id}`}
               loading={companySearchLoading}
               inputValue={companySearchTerm}
               onInputChange={(event, newInputValue) => {
                 setCompanySearchTerm(newInputValue)
               }}
-              value={
-                filteredCompanyOptions.find(
-                  (opt) => opt.company_id === companyActionData.company_id
-                ) || null
-              }
+              value={filteredCompanyOptions.find((opt) => opt.company_id === companyActionData.company_id) || null}
               onChange={(event, newValue) => {
                 setCompanyActionData((prev) => ({
                   ...prev,
@@ -1247,13 +1268,7 @@ const UserManagement = () => {
                 }))
               }}
               renderInput={(params) => (
-                <TextField
-                  {...params}
-                  label="Select Company to Remove"
-                  margin="normal"
-                  fullWidth
-                  required
-                />
+                <TextField {...params} label="Select Company to Remove" margin="normal" fullWidth required />
               )}
             />
             {companySearchError && (

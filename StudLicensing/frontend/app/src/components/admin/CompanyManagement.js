@@ -48,6 +48,17 @@ const stableSort = (array, comparator) => {
   return stabilized.map((el) => el[0])
 }
 
+const clearErrorAfterTimeout = (setErrorFn, timeoutRef, setTimeoutRef) => {
+  if (timeoutRef) {
+    clearTimeout(timeoutRef)
+  }
+  const timeout = setTimeout(() => {
+    setErrorFn("")
+    setTimeoutRef(null)
+  }, 10000)
+  setTimeoutRef(timeout)
+}
+
 const CompanyManagement = () => {
   const { apiCall } = useApi()
 
@@ -56,6 +67,10 @@ const CompanyManagement = () => {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [createError, setCreateError] = useState("")
+  const [editError, setEditError] = useState("")
+  const [createErrorTimeout, setCreateErrorTimeout] = useState(null)
+  const [editErrorTimeout, setEditErrorTimeout] = useState(null)
 
   // Controls state
   const [searchTerm, setSearchTerm] = useState("")
@@ -139,7 +154,9 @@ const CompanyManagement = () => {
         fetchAllCompanies()
       } else {
         const err = await response.json()
-        setError(err.detail || "Failed to create company")
+        const errorMessage = err.detail || "Failed to create company"
+        setCreateError(errorMessage)
+        clearErrorAfterTimeout(setCreateError, createErrorTimeout, setCreateErrorTimeout)
       }
     } catch {
       setError("Network error. Please try again.")
@@ -171,7 +188,9 @@ const CompanyManagement = () => {
         fetchAllCompanies()
       } else {
         const err = await response.json()
-        setError(err.detail || "Failed to update company")
+        const errorMessage = err.detail || "Failed to update company"
+        setEditError(errorMessage)
+        clearErrorAfterTimeout(setEditError, editErrorTimeout, setEditErrorTimeout)
       }
     } catch {
       setError("Network error. Please try again.")
@@ -254,6 +273,13 @@ const CompanyManagement = () => {
   const sortedCompanies = useMemo(() => {
     return stableSort(filteredCompanies, getComparator(order, orderBy))
   }, [filteredCompanies, order, orderBy])
+
+  useEffect(() => {
+    return () => {
+      if (createErrorTimeout) clearTimeout(createErrorTimeout)
+      if (editErrorTimeout) clearTimeout(editErrorTimeout)
+    }
+  }, [createErrorTimeout, editErrorTimeout])
 
   return (
     <Box>
@@ -379,6 +405,11 @@ const CompanyManagement = () => {
             </Typography>
           </DialogTitle>
           <DialogContent>
+            {createError && (
+              <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                {createError}
+              </Alert>
+            )}
             <TextField
               margin="normal"
               fullWidth
@@ -415,6 +446,11 @@ const CompanyManagement = () => {
             </Typography>
           </DialogTitle>
           <DialogContent>
+            {editError && (
+              <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+                {editError}
+              </Alert>
+            )}
             {selectedCompany && (
               <TextField
                 margin="normal"
