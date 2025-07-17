@@ -46,6 +46,7 @@ const ProfilePage = () => {
   const [initialized, setInitialized] = useState(false)
   const [profileErrorTimeout, setProfileErrorTimeout] = useState(null)
   const [passwordErrorTimeout, setPasswordErrorTimeout] = useState(null)
+  const [successTimeout, setSuccessTimeout] = useState(null)
   const { user } = useAuth()
   const { apiCall } = useApi()
   const { profileInfo, profilePicture, updateProfileInfo, updateProfilePicture } = useProfile()
@@ -58,6 +59,17 @@ const ProfilePage = () => {
     }
     const timeout = setTimeout(() => {
       setErrorFn("")
+      setTimeoutRef(null)
+    }, 10000)
+    setTimeoutRef(timeout)
+  }
+
+  const clearMessageAfterTimeout = (setMessageFn, timeoutRef, setTimeoutRef) => {
+    if (timeoutRef) {
+      clearTimeout(timeoutRef)
+    }
+    const timeout = setTimeout(() => {
+      setMessageFn("")
       setTimeoutRef(null)
     }, 10000)
     setTimeoutRef(timeout)
@@ -84,6 +96,7 @@ const ProfilePage = () => {
 
     if (result.success) {
       setSuccess("Profile updated successfully")
+      clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
     } else {
       setError(result.error)
       clearErrorAfterTimeout(setError, profileErrorTimeout, setProfileErrorTimeout)
@@ -103,6 +116,7 @@ const ProfilePage = () => {
 
     if (result.success) {
       setSuccess("Profile picture updated successfully")
+      clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
     } else {
       setError(result.error)
       clearErrorAfterTimeout(setError, profileErrorTimeout, setProfileErrorTimeout)
@@ -137,6 +151,7 @@ const ProfilePage = () => {
         setSuccess("Password changed successfully")
         setPasswordDialog(false)
         setPasswordData({ oldPassword: "", newPassword: "", confirmPassword: "" })
+        clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
       } else {
         const errorData = await response.json()
         const errorMessage = errorData.detail || "Failed to change password"
@@ -156,8 +171,9 @@ const ProfilePage = () => {
     return () => {
       if (profileErrorTimeout) clearTimeout(profileErrorTimeout)
       if (passwordErrorTimeout) clearTimeout(passwordErrorTimeout)
+      if (successTimeout) clearTimeout(successTimeout)
     }
-  }, [profileErrorTimeout, passwordErrorTimeout])
+  }, [profileErrorTimeout, passwordErrorTimeout, successTimeout])
 
   if (!initialized) {
     return (

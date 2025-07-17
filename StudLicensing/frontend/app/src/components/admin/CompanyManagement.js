@@ -48,12 +48,12 @@ const stableSort = (array, comparator) => {
   return stabilized.map((el) => el[0])
 }
 
-const clearErrorAfterTimeout = (setErrorFn, timeoutRef, setTimeoutRef) => {
+const clearMessageAfterTimeout = (setMessageFn, timeoutRef, setTimeoutRef) => {
   if (timeoutRef) {
     clearTimeout(timeoutRef)
   }
   const timeout = setTimeout(() => {
-    setErrorFn("")
+    setMessageFn("")
     setTimeoutRef(null)
   }, 10000)
   setTimeoutRef(timeout)
@@ -71,6 +71,7 @@ const CompanyManagement = () => {
   const [editError, setEditError] = useState("")
   const [createErrorTimeout, setCreateErrorTimeout] = useState(null)
   const [editErrorTimeout, setEditErrorTimeout] = useState(null)
+  const [successTimeout, setSuccessTimeout] = useState(null)
 
   // Controls state
   const [searchTerm, setSearchTerm] = useState("")
@@ -147,6 +148,7 @@ const CompanyManagement = () => {
       })
       if (response.ok) {
         setSuccess("Company created successfully!")
+        clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
         setCreateDialog(false)
         setNewCompanyName("")
         // Reset the loaded flag to force refresh
@@ -156,7 +158,7 @@ const CompanyManagement = () => {
         const err = await response.json()
         const errorMessage = err.detail || "Failed to create company"
         setCreateError(errorMessage)
-        clearErrorAfterTimeout(setCreateError, createErrorTimeout, setCreateErrorTimeout)
+        clearMessageAfterTimeout(setCreateError, createErrorTimeout, setCreateErrorTimeout)
       }
     } catch {
       setError("Network error. Please try again.")
@@ -181,6 +183,7 @@ const CompanyManagement = () => {
       })
       if (response.ok) {
         setSuccess("Company updated successfully!")
+        clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
         setEditDialog(false)
         setSelectedCompany(null)
         // Reset the loaded flag to force refresh
@@ -190,7 +193,7 @@ const CompanyManagement = () => {
         const err = await response.json()
         const errorMessage = err.detail || "Failed to update company"
         setEditError(errorMessage)
-        clearErrorAfterTimeout(setEditError, editErrorTimeout, setEditErrorTimeout)
+        clearMessageAfterTimeout(setEditError, editErrorTimeout, setEditErrorTimeout)
       }
     } catch {
       setError("Network error. Please try again.")
@@ -211,6 +214,7 @@ const CompanyManagement = () => {
       })
       if (response.ok) {
         setSuccess("Company deleted successfully!")
+        clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
         setDeleteDialog(false)
         setSelectedCompany(null)
         // Reset the loaded flag to force refresh
@@ -278,8 +282,9 @@ const CompanyManagement = () => {
     return () => {
       if (createErrorTimeout) clearTimeout(createErrorTimeout)
       if (editErrorTimeout) clearTimeout(editErrorTimeout)
+      if (successTimeout) clearTimeout(successTimeout)
     }
-  }, [createErrorTimeout, editErrorTimeout])
+  }, [createErrorTimeout, editErrorTimeout, successTimeout])
 
   return (
     <Box>

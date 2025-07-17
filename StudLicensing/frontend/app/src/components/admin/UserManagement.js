@@ -140,6 +140,7 @@ const UserManagement = () => {
   const [editError, setEditError] = useState("")
   const [createErrorTimeout, setCreateErrorTimeout] = useState(null)
   const [editErrorTimeout, setEditErrorTimeout] = useState(null)
+  const [successTimeout, setSuccessTimeout] = useState(null)
 
   // ---------- User Types ----------
   const userTypes = [
@@ -196,6 +197,17 @@ const UserManagement = () => {
     }
     const timeout = setTimeout(() => {
       setErrorFn("")
+      setTimeoutRef(null)
+    }, 10000)
+    setTimeoutRef(timeout)
+  }
+
+  const clearMessageAfterTimeout = (setMessageFn, timeoutRef, setTimeoutRef) => {
+    if (timeoutRef) {
+      clearTimeout(timeoutRef)
+    }
+    const timeout = setTimeout(() => {
+      setMessageFn("")
       setTimeoutRef(null)
     }, 10000)
     setTimeoutRef(timeout)
@@ -273,6 +285,7 @@ const UserManagement = () => {
       })
       if (res.ok || res.status === 201) {
         setSuccess("User created!")
+        clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
         setCreateDialog(false)
         setNewUser({ username: "", name: "", surname: "", user_type: "company_client", company_id: "" })
         usersLoaded.current = false
@@ -318,6 +331,7 @@ const UserManagement = () => {
       })
       if (res.ok) {
         setSuccess("User updated!")
+        clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
         setEditDialog(false)
         setSelectedUser(null)
         usersLoaded.current = false
@@ -355,6 +369,7 @@ const UserManagement = () => {
       })
       if (res.ok) {
         setSuccess("User deleted!")
+        clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
         setDeleteDialog(false)
         setSelectedUser(null)
         // Reset the loaded flag to force refresh
@@ -594,6 +609,7 @@ const UserManagement = () => {
       })
       if (res.ok) {
         setSuccess("User added to company!")
+        clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
         setAddToCompanyDialog(false)
         // Reset the loaded flag to force refresh
         usersLoaded.current = false
@@ -625,6 +641,7 @@ const UserManagement = () => {
       })
       if (res.ok) {
         setSuccess("User removed from company!")
+        clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
         setRemoveFromCompanyDialog(false)
         // Reset the loaded flag to force refresh
         usersLoaded.current = false
@@ -666,6 +683,7 @@ const UserManagement = () => {
       })
       if (res.ok) {
         setSuccess("Email updated!")
+        clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
         setUpdateEmailDialog(false)
         setEmailError("")
         // Reset the loaded flag to force refresh
