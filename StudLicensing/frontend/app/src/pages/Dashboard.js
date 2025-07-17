@@ -1,5 +1,4 @@
 "use client"
-import { useEffect, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Container,
@@ -15,67 +14,107 @@ import {
   Toolbar,
   Chip,
   Avatar,
+  useTheme,
 } from "@mui/material"
 import { AdminPanelSettings, Person, TrendingUp, Business } from "@mui/icons-material"
 import { useAuth } from "../contexts/AuthContext"
-import { useApi } from "../contexts/ApiContext"
 import UserAvatar from "../components/UserAvatar"
+import { useProfile } from "../contexts/ProfileContext"
 
 const Dashboard = () => {
   const { user, hasRole } = useAuth()
-  const { apiCall } = useApi()
+  const { profileInfo } = useProfile() // Use ProfileContext instead of local state
   const navigate = useNavigate()
-  const [profileInfo, setProfileInfo] = useState({ name: "", surname: "" })
-
-  useEffect(() => {
-    fetchProfileInfo()
-  }, [])
-
-  const fetchProfileInfo = async () => {
-    try {
-      const response = await apiCall("/profile/info")
-      if (response.ok) {
-        const data = await response.json()
-        setProfileInfo({
-          name: data.name || "",
-          surname: data.surname || "",
-        })
-      }
-    } catch (error) {
-      console.error("Error fetching profile info:", error)
-    }
-  }
+  const theme = useTheme()
+  // Remove unused variable: const isMobile = useMediaQuery(theme.breakpoints.down("md"))
 
   return (
-    <Box sx={{ flexGrow: 1, minHeight: "100vh" }}>
-      <AppBar position="static" elevation={0} sx={{ background: "linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)" }}>
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
-            StudLicensing Dashboard
-          </Typography>
+    <Box sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}>
+      <AppBar
+        position="static"
+        elevation={0}
+        sx={{
+          background: "linear-gradient(135deg, #1976d2 0%, #42a5f5 50%, #64b5f6 100%)",
+          boxShadow: "0 8px 32px rgba(25, 118, 210, 0.4)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+          borderRadius: 0, // Remove rounded edges
+        }}
+      >
+        <Toolbar sx={{ py: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexGrow: 1 }}>
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "linear-gradient(45deg, #ffffff20, #ffffff40)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backdropFilter: "blur(10px)",
+              }}
+            >
+              <Typography variant="h6" fontWeight="bold" color="white">
+                S
+              </Typography>
+            </Box>
+            <Typography
+              variant="h6"
+              component="div"
+              sx={{
+                fontWeight: 700,
+                fontSize: { xs: "1.1rem", sm: "1.25rem" },
+                letterSpacing: "0.5px",
+                textShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              }}
+            >
+              StudLicensing Dashboard
+            </Typography>
+          </Box>
           <UserAvatar />
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="lg" sx={{ mt: 4, mb: 4 }}>
+      <Container maxWidth="lg" sx={{ mt: 4, mb: 4, px: { xs: 2, sm: 3 } }}>
         <Paper
           elevation={3}
           sx={{
-            p: 4,
+            p: { xs: 3, sm: 4 },
             mb: 4,
-            background: "linear-gradient(135deg, rgba(25, 118, 210, 0.1) 0%, rgba(66, 165, 245, 0.1) 100%)",
+            background:
+              theme.palette.mode === "dark"
+                ? "linear-gradient(135deg, rgba(25, 118, 210, 0.1) 0%, rgba(66, 165, 245, 0.1) 100%)"
+                : "linear-gradient(135deg, rgba(25, 118, 210, 0.05) 0%, rgba(66, 165, 245, 0.05) 100%)",
             borderRadius: 3,
+            border: `1px solid ${theme.palette.divider}`,
           }}
         >
-          <Box display="flex" alignItems="center" gap={3}>
-            <Avatar sx={{ width: 80, height: 80, bgcolor: "primary.main" }}>
-              <Person sx={{ fontSize: 40 }} />
+          <Box
+            display="flex"
+            alignItems="center"
+            gap={3}
+            flexDirection={{ xs: "column", sm: "row" }}
+            textAlign={{ xs: "center", sm: "left" }}
+          >
+            <Avatar sx={{ width: { xs: 60, sm: 80 }, height: { xs: 60, sm: 80 }, bgcolor: "primary.main" }}>
+              <Person sx={{ fontSize: { xs: 30, sm: 40 } }} />
             </Avatar>
             <Box>
-              <Typography variant="h4" gutterBottom fontWeight="bold">
+              <Typography
+                variant="h4"
+                gutterBottom
+                fontWeight="bold"
+                sx={{ fontSize: { xs: "1.75rem", sm: "2.125rem" } }}
+              >
                 Welcome back, {profileInfo.name} {profileInfo.surname}!
               </Typography>
-              <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+              <Box
+                display="flex"
+                gap={2}
+                alignItems="center"
+                flexWrap="wrap"
+                justifyContent={{ xs: "center", sm: "flex-start" }}
+              >
                 <Chip label={user?.roleDisplayName} color="primary" variant="filled" sx={{ fontWeight: 500 }} />
                 <Typography variant="body1" color="text.secondary">
                   {user?.email}
@@ -96,6 +135,7 @@ const Dashboard = () => {
                   transform: "translateY(-4px)",
                   boxShadow: 6,
                 },
+                borderRadius: 3,
               }}
             >
               <CardContent sx={{ p: 3 }}>
@@ -112,7 +152,15 @@ const Dashboard = () => {
                 </Typography>
               </CardContent>
               <CardActions sx={{ p: 3, pt: 0 }}>
-                <Button variant="contained" onClick={() => navigate("/profile")} sx={{ borderRadius: 2 }}>
+                <Button
+                  variant="contained"
+                  onClick={() => navigate("/profile")}
+                  sx={{
+                    borderRadius: 2,
+                    background: "linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)",
+                    boxShadow: "0 3px 5px 2px rgba(25, 118, 210, .3)",
+                  }}
+                >
                   Manage Profile
                 </Button>
               </CardActions>
@@ -130,6 +178,7 @@ const Dashboard = () => {
                     transform: "translateY(-4px)",
                     boxShadow: 6,
                   },
+                  borderRadius: 3,
                 }}
               >
                 <CardContent sx={{ p: 3 }}>
@@ -169,6 +218,7 @@ const Dashboard = () => {
                   transform: "translateY(-4px)",
                   boxShadow: 6,
                 },
+                borderRadius: 3,
               }}
             >
               <CardContent sx={{ p: 3 }}>
@@ -202,6 +252,7 @@ const Dashboard = () => {
                   transform: "translateY(-4px)",
                   boxShadow: 6,
                 },
+                borderRadius: 3,
               }}
             >
               <CardContent sx={{ p: 3 }}>

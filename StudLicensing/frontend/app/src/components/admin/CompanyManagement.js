@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import {
   Box,
   Typography,
@@ -24,7 +24,7 @@ import {
   CardContent,
   TableSortLabel,
 } from "@mui/material"
-import { Add, Edit, Delete, Search } from "@mui/icons-material"
+import { Add, Edit, Delete } from "@mui/icons-material"
 import { useApi } from "../../contexts/ApiContext"
 
 // ---------- Sort helpers ----------
@@ -37,9 +37,7 @@ const descendingComparator = (a, b, orderBy) => {
 }
 
 const getComparator = (order, orderBy) =>
-  order === 'desc'
-    ? (a, b) => descendingComparator(a, b, orderBy)
-    : (a, b) => -descendingComparator(a, b, orderBy)
+  order === "desc" ? (a, b) => descendingComparator(a, b, orderBy) : (a, b) => -descendingComparator(a, b, orderBy)
 
 const stableSort = (array, comparator) => {
   const stabilized = array.map((el, idx) => [el, idx])
@@ -47,22 +45,22 @@ const stableSort = (array, comparator) => {
     const cmp = comparator(a[0], b[0])
     return cmp !== 0 ? cmp : a[1] - b[1]
   })
-  return stabilized.map(el => el[0])
+  return stabilized.map((el) => el[0])
 }
 
 const CompanyManagement = () => {
   const { apiCall } = useApi()
 
   // Data state
-  const [companies, setCompanies] = useState([])
+  const [allCompanies, setAllCompanies] = useState([]) // Store all companies from API
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
 
   // Controls state
   const [searchTerm, setSearchTerm] = useState("")
-  const [order, setOrder] = useState('asc')
-  const [orderBy, setOrderBy] = useState('company_id')
+  const [order, setOrder] = useState("asc")
+  const [orderBy, setOrderBy] = useState("company_id")
 
   // Dialog state
   const [createDialog, setCreateDialog] = useState(false)
@@ -71,33 +69,52 @@ const CompanyManagement = () => {
   const [selectedCompany, setSelectedCompany] = useState(null)
   const [newCompanyName, setNewCompanyName] = useState("")
 
-  // Fetch companies (now using x-www-form-urlencoded)
-  const searchCompanies = async () => {
+  // Use ref to prevent duplicate API calls
+  const companiesLoaded = useRef(false)
+  const companiesLoading = useRef(false)
+
+  // Fetch all companies (only called once and after CRUD operations)
+  const fetchAllCompanies = async () => {
+    if (companiesLoaded.current || companiesLoading.current) return
+
+    companiesLoading.current = true
     setLoading(true)
     setError("")
     try {
       const params = new URLSearchParams()
-      if (searchTerm) params.append('company_name', searchTerm)
-
-      const res = await apiCall("/company/search", {
+      const response = await apiCall("/company/search", {
         method: "POST",
         body: params.toString(),
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       })
 
-      if (res.ok) {
-        const data = await res.json()
-        setCompanies(data.companies || [])
+      if (response.ok) {
+        const data = await response.json()
+        setAllCompanies(data.companies || [])
+        companiesLoaded.current = true
       } else {
-        const err = await res.json()
-        setError(err.detail || "Failed to search companies")
+        const err = await response.json()
+        setError(err.detail || "Failed to fetch companies")
       }
     } catch {
       setError("Network error. Please try again.")
     } finally {
       setLoading(false)
+      companiesLoading.current = false
     }
   }
+
+  // Client-side filtering
+  const filteredCompanies = useMemo(() => {
+    if (!searchTerm) return allCompanies
+
+    const searchLower = searchTerm.toLowerCase()
+    return allCompanies.filter(
+      (company) =>
+        company.company_name?.toLowerCase().includes(searchLower) ||
+        company.company_id?.toString().includes(searchLower),
+    )
+  }, [allCompanies, searchTerm])
 
   // --- Create Company ---
   const handleCreateCompany = async (e) => {
@@ -108,18 +125,20 @@ const CompanyManagement = () => {
     try {
       const params = new URLSearchParams()
       params.append("companyName", newCompanyName)
-      const res = await apiCall("/company/create", {
+      const response = await apiCall("/company/create", {
         method: "POST",
         body: params.toString(),
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       })
-      if (res.ok) {
+      if (response.ok) {
         setSuccess("Company created successfully!")
         setCreateDialog(false)
         setNewCompanyName("")
-        searchCompanies()
+        // Reset the loaded flag to force refresh
+        companiesLoaded.current = false
+        fetchAllCompanies()
       } else {
-        const err = await res.json()
+        const err = await response.json()
         setError(err.detail || "Failed to create company")
       }
     } catch {
@@ -138,18 +157,20 @@ const CompanyManagement = () => {
     try {
       const params = new URLSearchParams()
       params.append("companyName", selectedCompany.name)
-      const res = await apiCall(`/company/update/${selectedCompany.id}`, {
+      const response = await apiCall(`/company/update/${selectedCompany.id}`, {
         method: "PUT",
         body: params.toString(),
         headers: { "Content-Type": "application/x-www-form-urlencoded" },
       })
-      if (res.ok) {
+      if (response.ok) {
         setSuccess("Company updated successfully!")
         setEditDialog(false)
         setSelectedCompany(null)
-        searchCompanies()
+        // Reset the loaded flag to force refresh
+        companiesLoaded.current = false
+        fetchAllCompanies()
       } else {
-        const err = await res.json()
+        const err = await response.json()
         setError(err.detail || "Failed to update company")
       }
     } catch {
@@ -166,16 +187,18 @@ const CompanyManagement = () => {
     setSuccess("")
     setLoading(true)
     try {
-      const res = await apiCall(`/company/delete/${selectedCompany.id}`, {
-        method: "DELETE"
+      const response = await apiCall(`/company/delete/${selectedCompany.id}`, {
+        method: "DELETE",
       })
-      if (res.ok) {
+      if (response.ok) {
         setSuccess("Company deleted successfully!")
         setDeleteDialog(false)
         setSelectedCompany(null)
-        searchCompanies()
+        // Reset the loaded flag to force refresh
+        companiesLoaded.current = false
+        fetchAllCompanies()
       } else {
-        const err = await res.json()
+        const err = await response.json()
         setError(err.detail || "Failed to delete company")
       }
     } catch {
@@ -185,48 +208,80 @@ const CompanyManagement = () => {
     }
   }
 
-  // Perform search on initial load and whenever searchTerm changes
+  // Load companies only once on component mount
   useEffect(() => {
-    searchCompanies()
-    // eslint-disable-next-line
-  }, [searchTerm])
+    const loadCompanies = async () => {
+      if (companiesLoaded.current || companiesLoading.current) return
+
+      companiesLoading.current = true
+      setLoading(true)
+      setError("")
+      try {
+        const params = new URLSearchParams()
+        const response = await apiCall("/company/search", {
+          method: "POST",
+          body: params.toString(),
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setAllCompanies(data.companies || [])
+          companiesLoaded.current = true
+        } else {
+          const err = await response.json()
+          setError(err.detail || "Failed to fetch companies")
+        }
+      } catch {
+        setError("Network error. Please try again.")
+      } finally {
+        setLoading(false)
+        companiesLoading.current = false
+      }
+    }
+
+    loadCompanies()
+  }, [apiCall])
 
   // Sorting handler
-  const handleRequestSort = property => {
-    const isAsc = orderBy === property && order === 'asc'
-    setOrder(isAsc ? 'desc' : 'asc')
+  const handleRequestSort = (property) => {
+    const isAsc = orderBy === property && order === "asc"
+    setOrder(isAsc ? "desc" : "asc")
     setOrderBy(property)
   }
 
   // Apply sorting
-  const sortedCompanies = stableSort(companies, getComparator(order, orderBy))
+  const sortedCompanies = useMemo(() => {
+    return stableSort(filteredCompanies, getComparator(order, orderBy))
+  }, [filteredCompanies, order, orderBy])
 
   return (
     <Box>
-      <Typography variant="h5" gutterBottom fontWeight="bold">Company Management</Typography>
-      {error && <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>{error}</Alert>}
-      {success && <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>{success}</Alert>}
+      <Typography variant="h5" gutterBottom fontWeight="bold">
+        Company Management
+      </Typography>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }}>
+          {error}
+        </Alert>
+      )}
+      {success && (
+        <Alert severity="success" sx={{ mb: 2, borderRadius: 2 }}>
+          {success}
+        </Alert>
+      )}
 
       <Card sx={{ mb: 3, borderRadius: 2 }}>
         <CardContent>
-          <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'center' }}>
+          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
             <TextField
               label="Search companies"
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              placeholder="Company name"
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Company name or ID"
               size="small"
               sx={{ flexGrow: 1, minWidth: 200 }}
             />
-            <Button
-              variant="contained"
-              startIcon={<Search />}
-              onClick={searchCompanies}
-              disabled={loading}
-              sx={{ borderRadius: 2 }}
-            >
-              {loading ? <CircularProgress size={24} /> : 'Search'}
-            </Button>
             <Button
               variant="contained"
               startIcon={<Add />}
@@ -236,45 +291,53 @@ const CompanyManagement = () => {
               Create Company
             </Button>
           </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Showing {sortedCompanies.length} of {allCompanies.length} companies
+          </Typography>
         </CardContent>
       </Card>
 
       <TableContainer component={Paper} sx={{ borderRadius: 2 }}>
         <Table>
-          <TableHead sx={{ backgroundColor: 'background.paper' }}>
+          <TableHead sx={{ backgroundColor: "background.paper" }}>
             <TableRow>
-              <TableCell sortDirection={orderBy === 'company_id' ? order : false} sx={{ fontWeight: 'bold' }}>
+              <TableCell sortDirection={orderBy === "company_id" ? order : false} sx={{ fontWeight: "bold" }}>
                 <TableSortLabel
-                  active={orderBy === 'company_id'}
-                  direction={orderBy === 'company_id' ? order : 'asc'}
-                  onClick={() => handleRequestSort('company_id')}
-                >ID</TableSortLabel>
+                  active={orderBy === "company_id"}
+                  direction={orderBy === "company_id" ? order : "asc"}
+                  onClick={() => handleRequestSort("company_id")}
+                >
+                  ID
+                </TableSortLabel>
               </TableCell>
-              <TableCell sortDirection={orderBy === 'company_name' ? order : false} sx={{ fontWeight: 'bold' }}>
+              <TableCell
+                sortDirection={orderBy === "company_name" ? order : false}
+                sx={{ fontWeight: "bold", textAlign: "left" }}
+              >
                 <TableSortLabel
-                  active={orderBy === 'company_name'}
-                  direction={orderBy === 'company_name' ? order : 'asc'}
-                  onClick={() => handleRequestSort('company_name')}
-                >Company Name</TableSortLabel>
+                  active={orderBy === "company_name"}
+                  direction={orderBy === "company_name" ? order : "asc"}
+                  onClick={() => handleRequestSort("company_name")}
+                >
+                  Company Name
+                </TableSortLabel>
               </TableCell>
-              <TableCell sx={{ fontWeight: 'bold' }}>Actions</TableCell>
+              <TableCell sx={{ fontWeight: "bold", textAlign: "right" }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {sortedCompanies.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={3} align="center" sx={{ py: 4 }}>
-                  <Typography color="text.secondary">
-                    {loading ? 'Loading...' : 'No companies found'}
-                  </Typography>
+                <TableCell colSpan={3} align="left" sx={{ py: 4 }}>
+                  <Typography color="text.secondary">{loading ? "Loading..." : "No companies found"}</Typography>
                 </TableCell>
               </TableRow>
             ) : (
               sortedCompanies.map((c, idx) => (
                 <TableRow key={c.company_id || idx} hover>
                   <TableCell>{c.company_id}</TableCell>
-                  <TableCell>{c.company_name}</TableCell>
-                  <TableCell>
+                  <TableCell sx={{ textAlign: "left" }}>{c.company_name}</TableCell>
+                  <TableCell sx={{ textAlign: "right" }}>
                     <IconButton
                       onClick={() => {
                         setSelectedCompany({ id: c.company_id, name: c.company_name })
@@ -376,7 +439,13 @@ const CompanyManagement = () => {
       </Dialog>
 
       {/* Delete Company Dialog */}
-      <Dialog open={deleteDialog} onClose={() => setDeleteDialog(false)} PaperProps={{ sx: { borderRadius: 3 } }}>
+      <Dialog
+        open={deleteDialog}
+        onClose={() => setDeleteDialog(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}
+      >
         <DialogTitle>
           <Typography variant="h5" fontWeight="bold">
             Delete Company

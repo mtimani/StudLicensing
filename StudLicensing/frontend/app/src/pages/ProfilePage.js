@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React from "react"
+
+import { useState } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Container,
@@ -21,15 +23,16 @@ import {
   DialogActions,
   Card,
   CardContent,
+  useTheme,
 } from "@mui/material"
 import { ArrowBack, PhotoCamera, Person } from "@mui/icons-material"
 import { useAuth } from "../contexts/AuthContext"
 import { useApi } from "../contexts/ApiContext"
+import { useProfile } from "../contexts/ProfileContext"
 import UserAvatar from "../components/UserAvatar"
 
 const ProfilePage = () => {
-  const [profileInfo, setProfileInfo] = useState({ name: "", surname: "", email: "" })
-  const [profilePicture, setProfilePicture] = useState(null)
+  const [localProfileInfo, setLocalProfileInfo] = useState({ name: "", surname: "" })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -40,43 +43,23 @@ const ProfilePage = () => {
     confirmPassword: "",
   })
   const [passwordError, setPasswordError] = useState("")
+  const [initialized, setInitialized] = useState(false)
   const { user } = useAuth()
   const { apiCall } = useApi()
+  const { profileInfo, profilePicture, updateProfileInfo, updateProfilePicture } = useProfile()
   const navigate = useNavigate()
+  const theme = useTheme()
 
-  useEffect(() => {
-    fetchProfileInfo()
-    fetchProfilePicture()
-  }, [])
-
-  const fetchProfileInfo = async () => {
-    try {
-      const response = await apiCall("/profile/info")
-      if (response.ok) {
-        const data = await response.json()
-        setProfileInfo({
-          name: data.name || "",
-          surname: data.surname || "",
-          email: user?.email || "",
-        })
-      }
-    } catch (error) {
-      console.error("Error fetching profile info:", error)
+  // Initialize local state when profileInfo is loaded
+  React.useEffect(() => {
+    if (profileInfo.name || profileInfo.surname) {
+      setLocalProfileInfo({
+        name: profileInfo.name,
+        surname: profileInfo.surname,
+      })
+      setInitialized(true)
     }
-  }
-
-  const fetchProfilePicture = async () => {
-    try {
-      const response = await apiCall("/profile/picture")
-      if (response.ok) {
-        const blob = await response.blob()
-        const imageUrl = URL.createObjectURL(blob)
-        setProfilePicture(imageUrl)
-      }
-    } catch (error) {
-      console.error("Error fetching profile picture:", error)
-    }
-  }
+  }, [profileInfo.name, profileInfo.surname])
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault()
@@ -84,29 +67,14 @@ const ProfilePage = () => {
     setError("")
     setSuccess("")
 
-    try {
-      const response = await apiCall("/profile/info", {
-        method: "PUT",
-        body: JSON.stringify({
-          name: profileInfo.name,
-          surname: profileInfo.surname,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
+    const result = await updateProfileInfo(localProfileInfo)
 
-      if (response.ok) {
-        setSuccess("Profile updated successfully")
-      } else {
-        const errorData = await response.json()
-        setError(errorData.detail || "Failed to update profile")
-      }
-    } catch (err) {
-      setError("Network error. Please try again.")
-    } finally {
-      setLoading(false)
+    if (result.success) {
+      setSuccess("Profile updated successfully")
+    } else {
+      setError(result.error)
     }
+    setLoading(false)
   }
 
   const handlePictureUpload = async (event) => {
@@ -117,27 +85,14 @@ const ProfilePage = () => {
     setError("")
     setSuccess("")
 
-    try {
-      const formData = new FormData()
-      formData.append("new_picture", file)
+    const result = await updateProfilePicture(file)
 
-      const response = await apiCall("/profile/picture", {
-        method: "PUT",
-        body: formData,
-      })
-
-      if (response.ok) {
-        setSuccess("Profile picture updated successfully")
-        fetchProfilePicture()
-      } else {
-        const errorData = await response.json()
-        setError(errorData.detail || "Failed to update profile picture")
-      }
-    } catch (err) {
-      setError("Network error. Please try again.")
-    } finally {
-      setLoading(false)
+    if (result.success) {
+      setSuccess("Profile picture updated successfully")
+    } else {
+      setError(result.error)
     }
+    setLoading(false)
   }
 
   const handlePasswordChange = async (e) => {
@@ -178,31 +133,92 @@ const ProfilePage = () => {
     }
   }
 
+  if (!initialized) {
+    return (
+      <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh" }}>
+        <CircularProgress />
+      </Box>
+    )
+  }
+
   return (
-    <Box sx={{ flexGrow: 1, minHeight: "100vh" }}>
-      <AppBar position="static" elevation={0} sx={{ background: "linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)" }}>
-        <Toolbar>
+    <Box sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}>
+      <AppBar
+        position="static"
+        elevation={0}
+        sx={{
+          background: "linear-gradient(135deg, #1976d2 0%, #42a5f5 50%, #64b5f6 100%)",
+          boxShadow: "0 8px 32px rgba(25, 118, 210, 0.4)",
+          borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
+          borderRadius: 0, // Remove rounded edges
+        }}
+      >
+        <Toolbar sx={{ py: 1 }}>
           <IconButton
             size="large"
             edge="start"
             color="inherit"
             aria-label="back"
             onClick={() => navigate("/dashboard")}
-            sx={{ mr: 2 }}
+            sx={{
+              mr: 2,
+              background: "rgba(255, 255, 255, 0.1)",
+              "&:hover": { background: "rgba(255, 255, 255, 0.2)" },
+            }}
           >
             <ArrowBack />
           </IconButton>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 600 }}>
-            Profile Settings
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexGrow: 1 }}>
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                background: "linear-gradient(45deg, #ffffff20, #ffffff40)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backdropFilter: "blur(10px)",
+              }}
+            >
+              <Person sx={{ fontSize: 20, color: "white" }} />
+            </Box>
+            <Typography
+              variant="h6"
+              component="div"
+              sx={{
+                fontWeight: 700,
+                fontSize: { xs: "1.1rem", sm: "1.25rem" },
+                letterSpacing: "0.5px",
+                textShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              }}
+            >
+              Profile Settings
+            </Typography>
+          </Box>
           <UserAvatar />
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="md" sx={{ mt: 4, mb: 4 }}>
-        <Card elevation={3} sx={{ borderRadius: 3 }}>
-          <CardContent sx={{ p: 4 }}>
-            <Typography variant="h4" gutterBottom fontWeight="bold" color="primary">
+      <Container maxWidth="md" sx={{ mt: 4, mb: 4, px: { xs: 2, sm: 3 } }}>
+        <Card
+          elevation={3}
+          sx={{
+            borderRadius: 3,
+            background:
+              theme.palette.mode === "dark"
+                ? "linear-gradient(135deg, rgba(25, 118, 210, 0.05) 0%, rgba(66, 165, 245, 0.05) 100%)"
+                : "linear-gradient(135deg, rgba(25, 118, 210, 0.02) 0%, rgba(66, 165, 245, 0.02) 100%)",
+          }}
+        >
+          <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+            <Typography
+              variant="h4"
+              gutterBottom
+              fontWeight="bold"
+              color="primary"
+              sx={{ fontSize: { xs: "1.75rem", sm: "2.125rem" } }}
+            >
               Profile Settings
             </Typography>
 
@@ -223,15 +239,15 @@ const ProfilePage = () => {
                   <Avatar
                     src={profilePicture || undefined}
                     sx={{
-                      width: 150,
-                      height: 150,
+                      width: { xs: 120, sm: 150 },
+                      height: { xs: 120, sm: 150 },
                       mb: 3,
                       border: "4px solid",
                       borderColor: "primary.main",
-                      boxShadow: 3,
+                      boxShadow: "0 8px 32px rgba(25, 118, 210, 0.3)",
                     }}
                   >
-                    {!profilePicture && <Person sx={{ fontSize: 80 }} />}
+                    {!profilePicture && <Person sx={{ fontSize: { xs: 60, sm: 80 } }} />}
                   </Avatar>
                   <input
                     accept="image/*"
@@ -246,7 +262,12 @@ const ProfilePage = () => {
                       component="span"
                       startIcon={<PhotoCamera />}
                       disabled={loading}
-                      sx={{ borderRadius: 2 }}
+                      sx={{
+                        borderRadius: 2,
+                        px: 3,
+                        py: 1,
+                        fontSize: { xs: "0.875rem", sm: "1rem" },
+                      }}
                     >
                       Upload Picture
                     </Button>
@@ -260,8 +281,8 @@ const ProfilePage = () => {
                     margin="normal"
                     fullWidth
                     label="First Name"
-                    value={profileInfo.name}
-                    onChange={(e) => setProfileInfo({ ...profileInfo, name: e.target.value })}
+                    value={localProfileInfo.name}
+                    onChange={(e) => setLocalProfileInfo({ ...localProfileInfo, name: e.target.value })}
                     variant="outlined"
                     sx={{ mb: 2 }}
                   />
@@ -269,8 +290,8 @@ const ProfilePage = () => {
                     margin="normal"
                     fullWidth
                     label="Last Name"
-                    value={profileInfo.surname}
-                    onChange={(e) => setProfileInfo({ ...profileInfo, surname: e.target.value })}
+                    value={localProfileInfo.surname}
+                    onChange={(e) => setLocalProfileInfo({ ...localProfileInfo, surname: e.target.value })}
                     variant="outlined"
                     sx={{ mb: 2 }}
                   />
@@ -278,24 +299,41 @@ const ProfilePage = () => {
                     margin="normal"
                     fullWidth
                     label="Email"
-                    value={profileInfo.email}
+                    value={user?.email || ""}
                     disabled
                     variant="outlined"
                     sx={{ mb: 3 }}
                   />
-                  <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      gap: 2,
+                      flexDirection: { xs: "column", sm: "row" },
+                      alignItems: { xs: "stretch", sm: "center" },
+                    }}
+                  >
                     <Button
                       type="submit"
                       variant="contained"
                       disabled={loading}
-                      sx={{ borderRadius: 2, minWidth: 140 }}
+                      sx={{
+                        borderRadius: 2,
+                        minWidth: { xs: "auto", sm: 140 },
+                        py: 1.5,
+                        background: "linear-gradient(45deg, #1976d2 30%, #42a5f5 90%)",
+                        boxShadow: "0 3px 5px 2px rgba(25, 118, 210, .3)",
+                      }}
                     >
                       {loading ? <CircularProgress size={24} /> : "Update Profile"}
                     </Button>
                     <Button
                       variant="outlined"
                       onClick={() => setPasswordDialog(true)}
-                      sx={{ borderRadius: 2, minWidth: 140 }}
+                      sx={{
+                        borderRadius: 2,
+                        minWidth: { xs: "auto", sm: 140 },
+                        py: 1.5,
+                      }}
                     >
                       Change Password
                     </Button>

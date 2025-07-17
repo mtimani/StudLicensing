@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useState } from "react"
-import { useNavigate, Link } from "react-router-dom"
+import { useState, useEffect } from "react"
+import { useNavigate, Link, useSearchParams } from "react-router-dom"
 import {
   Container,
   TextField,
@@ -21,15 +21,23 @@ const LoginPage = () => {
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [searchParams] = useSearchParams()
   const { login, isAuthenticated } = useAuth()
   const { apiCall } = useApi()
   const navigate = useNavigate()
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isAuthenticated) {
       navigate("/dashboard")
     }
   }, [isAuthenticated, navigate])
+
+  useEffect(() => {
+    const message = searchParams.get("message")
+    if (message === "session_expired") {
+      setError("Your session has expired. Please login again.")
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -69,17 +77,24 @@ const LoginPage = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        p: 2,
+        p: { xs: 1, sm: 2 },
       }}
     >
-      <Container component="main" maxWidth="sm">
-        <Card elevation={24} sx={{ borderRadius: 4 }}>
-          <CardContent sx={{ p: 4 }}>
-            <Box textAlign="center" mb={4}>
-              <Typography component="h1" variant="h3" fontWeight="bold" color="primary" gutterBottom>
+      <Container component="main" maxWidth="sm" sx={{ px: { xs: 1, sm: 2 } }}>
+        <Card elevation={24} sx={{ borderRadius: 4, mx: { xs: 1, sm: 0 } }}>
+          <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+            <Box textAlign="center" mb={{ xs: 3, sm: 4 }}>
+              <Typography
+                component="h1"
+                variant="h3"
+                fontWeight="bold"
+                color="primary"
+                gutterBottom
+                sx={{ fontSize: { xs: "2rem", sm: "3rem" } }}
+              >
                 StudLicensing
               </Typography>
-              <Typography variant="h5" color="text.secondary">
+              <Typography variant="h5" color="text.secondary" sx={{ fontSize: { xs: "1.25rem", sm: "1.5rem" } }}>
                 Welcome back
               </Typography>
             </Box>

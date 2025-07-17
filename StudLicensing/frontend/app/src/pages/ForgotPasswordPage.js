@@ -57,23 +57,24 @@ const ForgotPasswordPage = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        p: 2,
+        p: { xs: 1, sm: 2 },
       }}
     >
-      <Container component="main" maxWidth="sm">
-        <Card elevation={24} sx={{ borderRadius: 4 }}>
-          <CardContent sx={{ p: 4 }}>
-            <Box textAlign="center" mb={4}>
+      <Container component="main" maxWidth="sm" sx={{ px: { xs: 1, sm: 2 } }}>
+        <Card elevation={24} sx={{ borderRadius: 4, mx: { xs: 1, sm: 0 } }}>
+          <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
+            <Box textAlign="center" mb={{ xs: 3, sm: 4 }}>
               <Typography
                 component="h1"
                 variant="h3"
                 fontWeight="bold"
                 color="primary"
                 gutterBottom
+                sx={{ fontSize: { xs: "2rem", sm: "3rem" } }}
               >
                 StudLicensing
               </Typography>
-              <Typography variant="h5" color="text.secondary">
+              <Typography variant="h5" color="text.secondary" sx={{ fontSize: { xs: "1.25rem", sm: "1.5rem" } }}>
                 {success ? "Check Your Email" : "Forgot Password"}
               </Typography>
             </Box>

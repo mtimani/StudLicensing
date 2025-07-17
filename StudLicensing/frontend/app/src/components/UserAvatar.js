@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import {
   Avatar,
   IconButton,
@@ -15,34 +15,16 @@ import {
 } from "@mui/material"
 import { Person, AdminPanelSettings, ExitToApp, Brightness4, Brightness7 } from "@mui/icons-material"
 import { useAuth } from "../contexts/AuthContext"
-import { useApi } from "../contexts/ApiContext"
+import { useProfile } from "../contexts/ProfileContext"
 import { useThemeMode } from "../contexts/ThemeContext"
 import { useNavigate } from "react-router-dom"
 
 const UserAvatar = () => {
   const [anchorEl, setAnchorEl] = useState(null)
-  const [profilePicture, setProfilePicture] = useState(null)
-  const { user, logout, hasRole } = useAuth()
-  const { apiCall } = useApi()
+  const { logout, hasRole } = useAuth()
+  const { profilePicture } = useProfile() // Use ProfileContext instead of local state
   const { darkMode, toggleDarkMode } = useThemeMode()
   const navigate = useNavigate()
-
-  useEffect(() => {
-    fetchProfilePicture()
-  }, [])
-
-  const fetchProfilePicture = async () => {
-    try {
-      const response = await apiCall("/profile/picture")
-      if (response.ok) {
-        const blob = await response.blob()
-        const imageUrl = URL.createObjectURL(blob)
-        setProfilePicture(imageUrl)
-      }
-    } catch (error) {
-      console.error("Error fetching profile picture:", error)
-    }
-  }
 
   const handleMenu = (event) => {
     setAnchorEl(event.currentTarget)
@@ -64,10 +46,11 @@ const UserAvatar = () => {
 
   const handleLogout = async () => {
     try {
-      await apiCall("/auth/logout", { method: "POST" })
+      // No need to call API logout since it's handled in AuthContext
+      logout()
+      navigate("/login")
     } catch (error) {
       console.error("Logout error:", error)
-    } finally {
       logout()
       navigate("/login")
     }
@@ -114,6 +97,8 @@ const UserAvatar = () => {
           sx: {
             mt: 1,
             minWidth: 200,
+            borderRadius: 2,
+            boxShadow: "0 8px 32px rgba(0,0,0,0.12)",
           },
         }}
       >

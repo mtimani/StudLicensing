@@ -10,47 +10,50 @@ import ResetPasswordPage from "./pages/ResetPasswordPage"
 import Dashboard from "./pages/Dashboard"
 import AdminDashboard from "./pages/AdminDashboard"
 import ProfilePage from "./pages/ProfilePage"
+import { ProfileProvider } from "./contexts/ProfileContext"
 
 function App() {
   return (
     <ThemeContextProvider>
       <AuthProvider>
         <ApiProvider>
-          <Router>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/validate-email/:token" element={<ValidateEmailPage />} />
-              <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
-              <Route
-                path="/dashboard"
-                element={
-                  <ProtectedRoute>
-                    <Dashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/admin"
-                element={
-                  <ProtectedRoute
-                    requiredRoles={["admin", "company_admin", "company_developper", "company_commercial"]}
-                  >
-                    <AdminDashboard />
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/profile"
-                element={
-                  <ProtectedRoute>
-                    <ProfilePage />
-                  </ProtectedRoute>
-                }
-              />
-              <Route path="/" element={<Navigate to="/login" replace />} />
-            </Routes>
-          </Router>
+          <ProfileProvider>
+            <Router>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/validate-email/:token" element={<ValidateEmailPage />} />
+                <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <ProtectedRoute>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/admin"
+                  element={
+                    <ProtectedRoute
+                      requiredRoles={["admin", "company_admin", "company_developper", "company_commercial"]}
+                    >
+                      <AdminDashboard />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="/profile"
+                  element={
+                    <ProtectedRoute>
+                      <ProfilePage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route path="/" element={<Navigate to="/login" replace />} />
+              </Routes>
+            </Router>
+          </ProfileProvider>
         </ApiProvider>
       </AuthProvider>
     </ThemeContextProvider>

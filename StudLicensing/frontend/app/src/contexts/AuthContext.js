@@ -1,3 +1,5 @@
+"use client"
+
 import { createContext, useContext, useState, useEffect } from "react"
 import { jwtDecode } from "jwt-decode"
 
@@ -79,6 +81,31 @@ export const AuthProvider = ({ children }) => {
     return user ? roles.includes(user.type) : false
   }
 
+  // Add this new function after the existing functions
+  const fetchProfileInfo = async () => {
+    if (!token) return null
+
+    try {
+      const response = await fetch(`${process.env.REACT_APP_API_BASE_URL || "http://localhost:8000"}/profile/info`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        mode: "cors",
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        return {
+          name: data.name || "",
+          surname: data.surname || "",
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching profile info:", error)
+    }
+    return null
+  }
+
   const value = {
     user,
     token,
@@ -86,6 +113,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     isAuthenticated: !!user,
     hasRole,
+    fetchProfileInfo, // Add this line
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
