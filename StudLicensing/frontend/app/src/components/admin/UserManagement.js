@@ -443,78 +443,8 @@ const UserManagement = () => {
   }
 
   // ========== Company search for Add/Remove Company dialogs ==========
-  const searchCompanyOptions = async (searchTerm = "") => {
-    setCompanySearchLoading(true)
-    setCompanySearchError("")
-    try {
-      const params = new URLSearchParams()
-      if (searchTerm) params.append("company_name", searchTerm)
-      const response = await apiCall("/company/search", {
-        method: "POST",
-        body: params.toString(),
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setCompanyOptions(data.companies || [])
-      } else {
-        setCompanyOptions([])
-        setCompanySearchError("Error searching companies")
-      }
-    } catch {
-      setCompanyOptions([])
-      setCompanySearchError("Network error while searching companies")
-    } finally {
-      setCompanySearchLoading(false)
-    }
-  }
-
-  const searchRemoveCompanyOptions = async (searchTerm = "") => {
-    setCompanySearchLoading(true)
-    setCompanySearchError("")
-    try {
-      const params = new URLSearchParams()
-      if (searchTerm) params.append("company_name", searchTerm)
-      const response = await apiCall("/company/search", {
-        method: "POST",
-        body: params.toString(),
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      })
-      if (response.ok) {
-        const data = await response.json()
-        const allowedIds = removeDialogUserCompanyIds.current
-        const allowedTitles = removeDialogUserCompanyTitles.current
-        const filtered = (data.companies || []).filter(
-          (c) => allowedIds.includes(c.company_id) || allowedTitles.includes(c.company_name),
-        )
-        setCompanyOptions(filtered)
-      } else {
-        setCompanyOptions([])
-        setCompanySearchError("Error searching companies")
-      }
-    } catch {
-      setCompanyOptions([])
-      setCompanySearchError("Network error while searching companies")
-    } finally {
-      setCompanySearchLoading(false)
-    }
-  }
 
   // Filter companies for Add To Company dialog - exclude companies user is already member of
-  const getAvailableCompaniesForUser = (user) => {
-    if (!user) return companyOptions
-
-    // Get the user's current company IDs
-    let userCompanyIds = []
-    if (Array.isArray(user.company_id)) {
-      userCompanyIds = user.company_id
-    } else if (user.company_id) {
-      userCompanyIds = [user.company_id]
-    }
-
-    // Filter out companies the user is already a member of
-    return companyOptions.filter((company) => !userCompanyIds.includes(company.company_id))
-  }
 
   useEffect(() => {
     const fetchCompanies = async () => {
