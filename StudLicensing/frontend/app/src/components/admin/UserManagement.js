@@ -32,6 +32,7 @@ import {
   Menu,
 } from "@mui/material"
 import { Add, Edit, Delete, Email, Settings } from "@mui/icons-material"
+import Autocomplete from "@mui/material/Autocomplete"
 import { useApi } from "../../contexts/ApiContext"
 import { useAuth } from "../../contexts/AuthContext"
 
@@ -126,9 +127,14 @@ const UserManagement = () => {
   const [companySearchError, setCompanySearchError] = useState("")
   const [companyOptions, setCompanyOptions] = useState([])
 
-  // For Remove dialog: keep the company IDs the user belongs to
+  // For Remove/Add dialogs: keep the company IDs the user belongs/doesn't belong to
   const removeDialogUserCompanyIds = useRef([])
   const removeDialogUserCompanyTitles = useRef([])
+  const addDialogUserCompanyIds = useRef([])
+  const addDialogUserCompanyTitles = useRef([])
+
+  // Local filtering for add user to company
+  const [filteredCompanyOptions, setFilteredCompanyOptions] = useState([])
 
   // ---------- User Types ----------
   const userTypes = [
@@ -462,121 +468,72 @@ const UserManagement = () => {
   }
 
   useEffect(() => {
-    if (addToCompanyDialog) {
-      const searchOptions = async (searchTerm = "") => {
-        setCompanySearchLoading(true)
-        setCompanySearchError("")
-        try {
-          const params = new URLSearchParams()
-          if (searchTerm) params.append("company_name", searchTerm)
-          const response = await apiCall("/company/search", {
-            method: "POST",
-            body: params.toString(),
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          })
-          if (response.ok) {
-            const data = await response.json()
-            setCompanyOptions(data.companies || [])
-          } else {
-            setCompanyOptions([])
-            setCompanySearchError("Error searching companies")
-          }
-        } catch {
-          setCompanyOptions([])
-          setCompanySearchError("Network error while searching companies")
-        } finally {
-          setCompanySearchLoading(false)
-        }
-      }
+    const fetchCompanies = async () => {
+      setCompanySearchLoading(true)
+      try {
+        const params = new URLSearchParams()
+        const response = await apiCall("/company/search", {
+          method: "POST",
+          body: params.toString(),
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        })
 
-      searchOptions(companySearchTerm)
-      setCompanyActionData((prev) => ({ ...prev, company_id: "" }))
+        const data = await response.json()
+        const allCompanies = data.companies || []
+
+        if (addToCompanyDialog) {
+          const userCompanyIds = addDialogUserCompanyIds.current
+          const userCompanyNames = addDialogUserCompanyTitles.current
+
+          const filtered = allCompanies.filter(
+            (c) =>
+              !userCompanyIds.includes(c.company_id) &&
+              !userCompanyNames.includes(c.company_name)
+          )
+
+          setCompanyOptions(filtered)
+          setFilteredCompanyOptions(filtered)
+          setCompanySearchTerm("")
+          setCompanyActionData((prev) => ({ ...prev, company_id: "" }))
+        }
+
+        if (removeFromCompanyDialog) {
+          const allowedIds = removeDialogUserCompanyIds.current
+          const allowedTitles = removeDialogUserCompanyTitles.current
+
+          const filtered = allCompanies.filter(
+            (c) => allowedIds.includes(c.company_id) || allowedTitles.includes(c.company_name)
+          )
+
+          setCompanyOptions(filtered)
+          setFilteredCompanyOptions(filtered)
+          setCompanySearchTerm("")
+          setCompanyActionData((prev) => ({ ...prev, company_id: "" }))
+        }
+
+      } catch {
+        setCompanyOptions([])
+        setFilteredCompanyOptions([])
+        setCompanySearchError("Network error while fetching companies")
+      } finally {
+        setCompanySearchLoading(false)
+      }
     }
 
-    if (removeFromCompanyDialog) {
-      const searchRemoveOptions = async (searchTerm = "") => {
-        setCompanySearchLoading(true)
-        setCompanySearchError("")
-        try {
-          const params = new URLSearchParams()
-          if (searchTerm) params.append("company_name", searchTerm)
-          const response = await apiCall("/company/search", {
-            method: "POST",
-            body: params.toString(),
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          })
-          if (response.ok) {
-            const data = await response.json()
-            const allowedIds = removeDialogUserCompanyIds.current
-            const allowedTitles = removeDialogUserCompanyTitles.current
-            const filtered = (data.companies || []).filter(
-              (c) => allowedIds.includes(c.company_id) || allowedTitles.includes(c.company_name),
-            )
-            setCompanyOptions(filtered)
-          } else {
-            setCompanyOptions([])
-            setCompanySearchError("Error searching companies")
-          }
-        } catch {
-          setCompanyOptions([])
-          setCompanySearchError("Network error while searching companies")
-        } finally {
-          setCompanySearchLoading(false)
-        }
-      }
-
-      searchRemoveOptions("")
-      setCompanyActionData((prev) => ({ ...prev, company_id: "" }))
+    if (addToCompanyDialog || removeFromCompanyDialog) {
+      fetchCompanies()
     }
-
-    setCompanySearchTerm("")
-    setCompanySearchError("")
   }, [addToCompanyDialog, removeFromCompanyDialog, apiCall])
 
   useEffect(() => {
-    const timeout = setTimeout(() => {
-      const searchOptions = async (searchTerm = "") => {
-        setCompanySearchLoading(true)
-        setCompanySearchError("")
-        try {
-          const params = new URLSearchParams()
-          if (searchTerm) params.append("company_name", searchTerm)
-          const response = await apiCall("/company/search", {
-            method: "POST",
-            body: params.toString(),
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-          })
-          if (response.ok) {
-            const data = await response.json()
-            if (addToCompanyDialog) {
-              setCompanyOptions(data.companies || [])
-            } else if (removeFromCompanyDialog) {
-              const allowedIds = removeDialogUserCompanyIds.current
-              const allowedTitles = removeDialogUserCompanyTitles.current
-              const filtered = (data.companies || []).filter(
-                (c) => allowedIds.includes(c.company_id) || allowedTitles.includes(c.company_name),
-              )
-              setCompanyOptions(filtered)
-            }
-          } else {
-            setCompanyOptions([])
-            setCompanySearchError("Error searching companies")
-          }
-        } catch {
-          setCompanyOptions([])
-          setCompanySearchError("Network error while searching companies")
-        } finally {
-          setCompanySearchLoading(false)
-        }
-      }
-
-      if (addToCompanyDialog || removeFromCompanyDialog) {
-        searchOptions(companySearchTerm)
-      }
-    }, 300)
-
-    return () => clearTimeout(timeout)
-  }, [companySearchTerm, addToCompanyDialog, removeFromCompanyDialog, apiCall])
+    const term = companySearchTerm.toLowerCase()
+    const filtered = companyOptions.filter(
+      (c) =>
+        c.company_name?.toLowerCase().includes(term) ||
+        c.company_id?.toString().includes(term)
+    )
+    setFilteredCompanyOptions(filtered)
+  }, [companySearchTerm, companyOptions])
 
   // ===== Gear menu state =====
   const [gearMenuAnchor, setGearMenuAnchor] = useState(null)
@@ -896,6 +853,21 @@ const UserManagement = () => {
           <MenuItem
             key="add"
             onClick={() => {
+              let userCompanyIds = []
+              let userCompanyTitles = []
+              if (Array.isArray(gearMenuUser.company_id)) {
+                userCompanyIds = gearMenuUser.company_id
+              } else if (gearMenuUser.company_id) {
+                userCompanyIds = [gearMenuUser.company_id]
+              }
+              if (Array.isArray(gearMenuUser.company_title)) {
+                userCompanyTitles = gearMenuUser.company_title
+              } else if (gearMenuUser.company_title) {
+                userCompanyTitles = [gearMenuUser.company_title]
+              }
+              addDialogUserCompanyIds.current = userCompanyIds
+              addDialogUserCompanyTitles.current = userCompanyTitles
+
               setCompanyActionData({ username: gearMenuUser.username, company_id: "" })
               setAddToCompanyDialog(true)
               handleCloseGearMenu()
@@ -1180,38 +1152,37 @@ const UserManagement = () => {
                 {error}
               </Alert>
             )}
-            <TextField
-              label="Search companies"
-              value={companySearchTerm}
-              onChange={(e) => setCompanySearchTerm(e.target.value)}
-              placeholder="Company name or leave empty"
-              fullWidth
-              size="small"
-              margin="dense"
-              disabled={companySearchLoading}
-              autoFocus
-              sx={{ mb: 2 }}
+            <Autocomplete
+              options={filteredCompanyOptions}
+              getOptionLabel={(option) =>
+                option.company_name || `Company #${option.company_id}`
+              }
+              loading={companySearchLoading}
+              inputValue={companySearchTerm}
+              onInputChange={(event, newInputValue) => {
+                setCompanySearchTerm(newInputValue)
+              }}
+              value={
+                filteredCompanyOptions.find(
+                  (opt) => opt.company_id === companyActionData.company_id
+                ) || null
+              }
+              onChange={(event, newValue) => {
+                setCompanyActionData((prev) => ({
+                  ...prev,
+                  company_id: newValue?.company_id || "",
+                }))
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Search and Select Company"
+                  margin="normal"
+                  fullWidth
+                  required
+                />
+              )}
             />
-            <FormControl fullWidth margin="normal" required>
-              <InputLabel>Select Company</InputLabel>
-              <Select
-                label="Select Company"
-                value={companyActionData.company_id}
-                onChange={(e) => setCompanyActionData((data) => ({ ...data, company_id: e.target.value }))}
-                disabled={companySearchLoading}
-              >
-                {getAvailableCompaniesForUser(gearMenuUser || {}).length === 0 && (
-                  <MenuItem value="" disabled>
-                    {companySearchLoading ? "Loading..." : "No available companies found"}
-                  </MenuItem>
-                )}
-                {getAvailableCompaniesForUser(gearMenuUser || {}).map((company) => (
-                  <MenuItem key={company.company_id} value={company.company_id}>
-                    {company.company_name || `Company #${company.company_id}`}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
             {companySearchError && (
               <Alert severity="error" sx={{ mt: 1 }}>
                 {companySearchError}
@@ -1254,38 +1225,37 @@ const UserManagement = () => {
                 {error}
               </Alert>
             )}
-            <TextField
-              label="Search companies"
-              value={companySearchTerm}
-              onChange={(e) => setCompanySearchTerm(e.target.value)}
-              placeholder="Company name or leave empty"
-              fullWidth
-              size="small"
-              margin="dense"
-              disabled={companySearchLoading}
-              autoFocus
-              sx={{ mb: 2 }}
+            <Autocomplete
+              options={filteredCompanyOptions}
+              getOptionLabel={(option) =>
+                option.company_name || `Company #${option.company_id}`
+              }
+              loading={companySearchLoading}
+              inputValue={companySearchTerm}
+              onInputChange={(event, newInputValue) => {
+                setCompanySearchTerm(newInputValue)
+              }}
+              value={
+                filteredCompanyOptions.find(
+                  (opt) => opt.company_id === companyActionData.company_id
+                ) || null
+              }
+              onChange={(event, newValue) => {
+                setCompanyActionData((prev) => ({
+                  ...prev,
+                  company_id: newValue?.company_id || "",
+                }))
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  label="Select Company to Remove"
+                  margin="normal"
+                  fullWidth
+                  required
+                />
+              )}
             />
-            <FormControl fullWidth margin="normal" required>
-              <InputLabel>Select Company</InputLabel>
-              <Select
-                label="Select Company"
-                value={companyActionData.company_id}
-                onChange={(e) => setCompanyActionData((data) => ({ ...data, company_id: e.target.value }))}
-                disabled={companySearchLoading}
-              >
-                {companyOptions.length === 0 && (
-                  <MenuItem value="" disabled>
-                    {companySearchLoading ? "Loading..." : "No companies found"}
-                  </MenuItem>
-                )}
-                {companyOptions.map((company) => (
-                  <MenuItem key={company.company_id} value={company.company_id}>
-                    {company.company_name || `Company #${company.company_id}`}
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
             {companySearchError && (
               <Alert severity="error" sx={{ mt: 1 }}>
                 {companySearchError}
