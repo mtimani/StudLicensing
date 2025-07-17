@@ -16,25 +16,25 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:800
 
 export const ApiProvider = ({ children }) => {
   const { token, login, logout } = useAuth()
-  // We still keep currentTokenRef for the x-refresh-token logic within apiCall,
-  // but the initial header will use the direct 'token' from useAuth().
   const currentTokenRef = useRef(token)
+  const requestCounterRef = useRef(0)
 
-  // This useEffect ensures currentTokenRef is always in sync with the AuthContext's token state.
   useEffect(() => {
     currentTokenRef.current = token
   }, [token])
 
   const apiCall = async (endpoint, options = {}) => {
+    const requestId = ++requestCounterRef.current
     const url = `${API_BASE_URL}${endpoint}`
+
     const headers = {
       ...options.headers,
     }
 
-    // Use the direct 'token' from useAuth() for the initial request header.
-    // This ensures we always use the latest token from AuthContext state.
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
+    // Use the most current token available
+    const currentToken = currentTokenRef.current || token
+    if (currentToken) {
+      headers.Authorization = `Bearer ${currentToken}`
     }
 
     if (options.body && typeof options.body === "object" && !(options.body instanceof FormData)) {
@@ -48,16 +48,16 @@ export const ApiProvider = ({ children }) => {
         mode: "cors",
       })
 
-      // Check for token refresh header IMMEDIATELY and update token
+      // Check for token refresh header
       const refreshToken = response.headers.get("x-refresh-token")
       if (refreshToken && refreshToken !== currentTokenRef.current) {
-        // Compare with ref for internal consistency
-        console.log("Token refreshed automatically - updating immediately")
-        login(refreshToken) // This will update the token in AuthContext and localStorage
-        currentTokenRef.current = refreshToken // Update our ref immediately for any subsequent calls in the same chain
+        // Update the ref immediately
+        currentTokenRef.current = refreshToken
+        // Update AuthContext state (this will also update localStorage)
+        login(refreshToken)
       }
 
-      // Handle 401 Unauthorized with "Invalid user." detail
+      // Handle 401 Unauthorized
       if (response.status === 401) {
         try {
           const errorData = await response.json()
@@ -67,13 +67,12 @@ export const ApiProvider = ({ children }) => {
             return response
           }
         } catch (e) {
-          // If we can't parse the JSON, just continue with normal flow
+          // Error parsing response, continue
         }
       }
 
       return response
     } catch (error) {
-      console.error("API call failed:", error)
       throw error
     }
   }

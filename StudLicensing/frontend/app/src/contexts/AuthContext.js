@@ -38,7 +38,7 @@ export const AuthProvider = ({ children }) => {
           setToken(storedToken)
           setUser({
             id: decoded.sub,
-            email: decoded.sub, // Extract email from sub field
+            email: decoded.sub,
             name: decoded.name || "",
             surname: decoded.surname || "",
             type: decoded.type || "basic",
@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }) => {
       setToken(newToken)
       setUser({
         id: decoded.sub,
-        email: decoded.sub, // Extract email from sub field
+        email: decoded.sub,
         name: decoded.name || "",
         surname: decoded.surname || "",
         type: decoded.type || "basic",
@@ -67,7 +67,7 @@ export const AuthProvider = ({ children }) => {
       })
       localStorage.setItem("token", newToken)
     } catch (error) {
-      console.error("Invalid token:", error)
+      console.error("Invalid token in login:", error)
     }
   }
 
@@ -81,7 +81,6 @@ export const AuthProvider = ({ children }) => {
     return user ? roles.includes(user.type) : false
   }
 
-  // Add this new function after the existing functions
   const fetchProfileInfo = async () => {
     if (!token) return null
 
@@ -113,7 +112,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     isAuthenticated: !!user,
     hasRole,
-    fetchProfileInfo, // Add this line
+    fetchProfileInfo,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

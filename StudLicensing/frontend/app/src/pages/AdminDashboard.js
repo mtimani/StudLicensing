@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState } from "react"
 import {
   Container,
   Paper,
@@ -43,10 +43,6 @@ const AdminDashboard = () => {
   const { hasRole } = useAuth()
   const theme = useTheme()
   const isMobile = useMediaQuery(theme.breakpoints.down("md"))
-
-  // Use refs to prevent duplicate component mounts
-  const userManagementMounted = useRef(false)
-  const companyManagementMounted = useRef(false)
 
   const handleTabChange = (event, newValue) => {
     setTabValue(newValue)
@@ -145,23 +141,11 @@ const AdminDashboard = () => {
             </Tabs>
           </Box>
           <TabPanel value={tabValue} index={0}>
-            {(tabValue === 0 || userManagementMounted.current) && (
-              <UserManagement
-                ref={() => {
-                  userManagementMounted.current = true
-                }}
-              />
-            )}
+            <UserManagement />
           </TabPanel>
           {isAdmin && (
             <TabPanel value={tabValue} index={1}>
-              {(tabValue === 1 || companyManagementMounted.current) && (
-                <CompanyManagement
-                  ref={() => {
-                    companyManagementMounted.current = true
-                  }}
-                />
-              )}
+              <CompanyManagement />
             </TabPanel>
           )}
         </Paper>
