@@ -186,9 +186,10 @@ const ProfilePage = () => {
   return (
     <Box sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}>
       <AppBar
-        position="static"
+        position="fixed"
         elevation={0}
         sx={{
+          zIndex: (theme) => theme.zIndex.drawer + 1,
           background: "linear-gradient(135deg, #1976d2 0%, #42a5f5 50%, #64b5f6 100%)",
           boxShadow: "0 8px 32px rgba(25, 118, 210, 0.4)",
           borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
@@ -241,6 +242,7 @@ const ProfilePage = () => {
           <UserAvatar />
         </Toolbar>
       </AppBar>
+      <Toolbar />
 
       <Container maxWidth="md" sx={{ mt: 4, mb: 4, px: { xs: 2, sm: 3 } }}>
         <Card

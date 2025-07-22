@@ -53,13 +53,14 @@ const AdminDashboard = () => {
   return (
     <Box sx={{ flexGrow: 1, minHeight: "100vh", bgcolor: "background.default" }}>
       <AppBar
-        position="static"
+        position="fixed"
         elevation={0}
         sx={{
           background: "linear-gradient(135deg, #1976d2 0%, #42a5f5 50%, #64b5f6 100%)",
           boxShadow: "0 8px 32px rgba(25, 118, 210, 0.4)",
           borderBottom: "1px solid rgba(255, 255, 255, 0.1)",
           borderRadius: 0, // Remove rounded edges
+          zIndex: (theme) => theme.zIndex.drawer + 1,
         }}
       >
         <Toolbar sx={{ py: 1 }}>
@@ -108,6 +109,7 @@ const AdminDashboard = () => {
           <UserAvatar />
         </Toolbar>
       </AppBar>
+      <Toolbar />
 
       <Container maxWidth="lg" sx={{ mt: 4, mb: 4, px: { xs: 2, sm: 3 } }}>
         <Paper
