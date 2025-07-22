@@ -70,6 +70,17 @@ const stableSort = (array, comparator) => {
   return stabilized.map((el) => el[0])
 }
 
+const clearMessageAfterTimeout = (setMessageFn, timeoutRef, setTimeoutRef) => {
+  if (timeoutRef) {
+    clearTimeout(timeoutRef)
+  }
+  const timeout = setTimeout(() => {
+    setMessageFn("")
+    setTimeoutRef(null)
+  }, 10000)
+  setTimeoutRef(timeout)
+}
+
 const UserManagement = () => {
   const { apiCall } = useApi()
   const { hasRole } = useAuth()
@@ -100,7 +111,7 @@ const UserManagement = () => {
     name: "",
     surname: "",
     user_type: defaultUserType,
-    company_id: "",
+    company_id: "", // This will now store the selected company's ID
   })
 
   // Use ref to prevent duplicate API calls
@@ -275,6 +286,7 @@ const UserManagement = () => {
       const typeToSend = newUser.user_type === "global_admin" ? "admin" : newUser.user_type
       formData.append("user_type", typeToSend)
 
+      // Only append company_id if it's a global admin creating a user with a company association
       if (isGlobalAdmin && newUser.company_id) {
         formData.append("company_id", newUser.company_id)
       }
@@ -442,9 +454,7 @@ const UserManagement = () => {
     setOrderBy(property)
   }
 
-  // ========== Company search for Add/Remove Company dialogs ==========
-
-  // Filter companies for Add To Company dialog - exclude companies user is already member of
+  // ========== Company search for Add/Remove Company dialogs and Create User dialog ==========
 
   useEffect(() => {
     const fetchCompanies = async () => {
@@ -460,28 +470,27 @@ const UserManagement = () => {
         const data = await response.json()
         const allCompanies = data.companies || []
 
-        if (addToCompanyDialog) {
+        if (createDialog) {
+          setCompanyOptions(allCompanies)
+          setFilteredCompanyOptions(allCompanies)
+          setCompanySearchTerm("")
+          setNewUser((prev) => ({ ...prev, company_id: "" })) // Reset company_id for new user
+        } else if (addToCompanyDialog) {
           const userCompanyIds = addDialogUserCompanyIds.current
           const userCompanyNames = addDialogUserCompanyTitles.current
-
           const filtered = allCompanies.filter(
             (c) => !userCompanyIds.includes(c.company_id) && !userCompanyNames.includes(c.company_name),
           )
-
           setCompanyOptions(filtered)
           setFilteredCompanyOptions(filtered)
           setCompanySearchTerm("")
           setCompanyActionData((prev) => ({ ...prev, company_id: "" }))
-        }
-
-        if (removeFromCompanyDialog) {
+        } else if (removeFromCompanyDialog) {
           const allowedIds = removeDialogUserCompanyIds.current
           const allowedTitles = removeDialogUserCompanyTitles.current
-
           const filtered = allCompanies.filter(
             (c) => allowedIds.includes(c.company_id) || allowedTitles.includes(c.company_name),
           )
-
           setCompanyOptions(filtered)
           setFilteredCompanyOptions(filtered)
           setCompanySearchTerm("")
@@ -496,10 +505,10 @@ const UserManagement = () => {
       }
     }
 
-    if (addToCompanyDialog || removeFromCompanyDialog) {
+    if (createDialog || addToCompanyDialog || removeFromCompanyDialog) {
       fetchCompanies()
     }
-  }, [addToCompanyDialog, removeFromCompanyDialog, apiCall])
+  }, [createDialog, addToCompanyDialog, removeFromCompanyDialog, apiCall])
 
   useEffect(() => {
     const term = companySearchTerm.toLowerCase()
@@ -953,13 +962,23 @@ const UserManagement = () => {
               </Select>
             </FormControl>
             {isGlobalAdmin && (
-              <TextField
-                margin="normal"
-                fullWidth
-                label="Company ID"
-                type="number"
-                value={newUser.company_id}
-                onChange={(e) => setNewUser({ ...newUser, company_id: e.target.value })}
+              <Autocomplete
+                options={filteredCompanyOptions}
+                getOptionLabel={(option) => option.company_name || `Company #${option.company_id}`}
+                loading={companySearchLoading}
+                inputValue={companySearchTerm}
+                onInputChange={(event, newInputValue) => {
+                  setCompanySearchTerm(newInputValue)
+                }}
+                value={filteredCompanyOptions.find((opt) => opt.company_id === newUser.company_id) || null}
+                onChange={(event, newValue) => {
+                  setNewUser((prev) => ({
+                    ...prev,
+                    company_id: newValue?.company_id || "",
+                  }))
+                }}
+                renderInput={(params) => <TextField {...params} label="Company Name" margin="normal" fullWidth />}
+                disabled={loading || companySearchLoading}
               />
             )}
           </DialogContent>
