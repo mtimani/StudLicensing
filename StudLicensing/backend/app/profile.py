@@ -171,7 +171,7 @@ def get_profile_picture(
 
     # 4. Raise error if the profile picture not found
     if not pictures:
-        logger.error(f'No profile picture found for the user {current_user["username"]}.')
+        logger.warning(f'No profile picture found for the user {current_user["username"]}.')
         raise HTTPException(
             status_code=403, 
             detail="No profile picture found."

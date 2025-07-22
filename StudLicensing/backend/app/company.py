@@ -111,7 +111,7 @@ def delete_company(
     # 2. Find the Company in the database
     client = db.query(Company).filter(Company.id == client_id).first()
     if not client:
-        logger.error(f"Companys {client_id} does not exist.")
+        logger.error(f"Company {client_id} does not exist.")
         raise HTTPException(status_code=403, detail="Error deleting client.")
 
     # 3. Delete the Company
@@ -138,7 +138,7 @@ def update_company(
     # 1. Retrieve the client from the DB
     client = db.query(Company).filter(Company.id == client_id).first()
     if not client:
-        logger.error(f"Companys {client_id} does not exist.")
+        logger.error(f"Company {client_id} does not exist.")
         raise HTTPException(status_code=403, detail="Error modifying client.")
 
     # 2. Check if current user is authorized to update this client

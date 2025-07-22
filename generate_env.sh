@@ -44,13 +44,21 @@ else
     echo "No private IP address found. PRIVATE_IP variable not added."
 fi
 
-echo ".env file created successfully."
+echo "Backend .env file created successfully."
 
 # Copy the .env file to StudLicensing/backend/app/
 TARGET_DIR="StudLicensing/backend/app"
 if [ -d "${TARGET_DIR}" ]; then
     cp .env "${TARGET_DIR}/.env"
-    echo "Copied .env to ${TARGET_DIR}/"
+    echo "Copied Backend .env to ${TARGET_DIR}/"
 else
     echo "Error: Directory ${TARGET_DIR} does not exist. Please check the path."
 fi
+
+
+# Write the environment variables to the Frontend .env file
+cat > ./StudLicensing/frontend/app/.env <<EOF
+REACT_APP_API_BASE_URL=http://localhost:8000
+EOF
+
+echo "Frontend .env file created successfully."

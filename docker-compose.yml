@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   frontend:
     container_name: react-frontend
@@ -15,7 +13,7 @@ services:
       - TZ=Europe/Paris
       - REACT_APP_API_URL=http://localhost:8000
     command: >
-      sh -c "npm install && npm start"
+      sh -c "npm install -g npm@latest && npm install && npm start"
     depends_on:
       - backend
       
