@@ -86,8 +86,6 @@ const UserManagement = () => {
   const { hasRole } = useAuth()
   const isAdmin = hasRole(["admin"])
   const canOnlyCreateClient = hasRole(["company_developper", "company_commercial"])
-  // Remove the unused variable
-  // const isLimitedRole = hasRole(["company_developper", "company_commercial"])
   const isCompanyAdmin = hasRole(["company_admin"])
   const isGlobalAdmin = hasRole(["admin"])
 
@@ -287,7 +285,13 @@ const UserManagement = () => {
       formData.append("user_type", typeToSend)
 
       // Only append company_id if it's a global admin creating a user with a company association
-      if (isGlobalAdmin && newUser.company_id) {
+      // and the user type is NOT admin/global_admin
+      if (
+        isGlobalAdmin &&
+        newUser.company_id &&
+        newUser.user_type !== "admin" &&
+        newUser.user_type !== "global_admin"
+      ) {
         formData.append("company_id", newUser.company_id)
       }
 
@@ -474,7 +478,7 @@ const UserManagement = () => {
           setCompanyOptions(allCompanies)
           setFilteredCompanyOptions(allCompanies)
           setCompanySearchTerm("")
-          setNewUser((prev) => ({ ...prev, company_id: "" })) // Reset company_id for new user
+          // Do not reset newUser.company_id here, it's handled by the user type change
         } else if (addToCompanyDialog) {
           const userCompanyIds = addDialogUserCompanyIds.current
           const userCompanyNames = addDialogUserCompanyTitles.current
@@ -934,11 +938,19 @@ const UserManagement = () => {
               required
             />
             <FormControl fullWidth margin="normal">
-              <InputLabel>User Type</InputLabel>
+              <InputLabel>User Type</InputLabel> {/* Simplified InputLabel */}
               <Select
                 value={newUser.user_type}
-                onChange={(e) => setNewUser({ ...newUser, user_type: e.target.value })}
-                label="User Type"
+                onChange={(e) => {
+                  const selectedType = e.target.value
+                  setNewUser((prev) => ({
+                    ...prev,
+                    user_type: selectedType,
+                    // Clear company_id if the selected type is admin or global_admin
+                    company_id: selectedType === "admin" || selectedType === "global_admin" ? "" : prev.company_id,
+                  }))
+                }}
+                label="User Type" // Simplified label prop to match InputLabel
               >
                 {canOnlyCreateClient ? (
                   <MenuItem value="company_client">{userTypeLabels["company_client"]}</MenuItem>
@@ -978,7 +990,12 @@ const UserManagement = () => {
                   }))
                 }}
                 renderInput={(params) => <TextField {...params} label="Company Name" margin="normal" fullWidth />}
-                disabled={loading || companySearchLoading}
+                disabled={
+                  loading ||
+                  companySearchLoading ||
+                  newUser.user_type === "admin" ||
+                  newUser.user_type === "global_admin"
+                }
               />
             )}
           </DialogContent>
@@ -1090,9 +1107,10 @@ const UserManagement = () => {
               </Alert>
             )}
             <TextField
+              margin="normal"
+              fullWidth
               label="New Email"
               type="email"
-              fullWidth
               required
               margin="normal"
               value={updateEmailData.new_username}
@@ -1105,6 +1123,8 @@ const UserManagement = () => {
               autoFocus
             />
             <TextField
+              margin="normal"
+              fullWidth
               label="Confirm New Email"
               type="email"
               fullWidth
