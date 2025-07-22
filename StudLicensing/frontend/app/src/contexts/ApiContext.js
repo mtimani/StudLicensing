@@ -24,7 +24,6 @@ export const ApiProvider = ({ children }) => {
   }, [token])
 
   const apiCall = async (endpoint, options = {}) => {
-    const requestId = ++requestCounterRef.current
     const url = `${API_BASE_URL}${endpoint}`
 
     const headers = {
