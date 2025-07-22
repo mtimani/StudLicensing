@@ -937,7 +937,7 @@ const UserManagement = () => {
               onChange={(e) => setNewUser({ ...newUser, surname: e.target.value })}
               required
             />
-            <FormControl fullWidth margin="normal">
+            <FormControl fullWidth margin="normal" required>
               <InputLabel>User Type</InputLabel> {/* Simplified InputLabel */}
               <Select
                 value={newUser.user_type}
@@ -1112,7 +1112,6 @@ const UserManagement = () => {
               label="New Email"
               type="email"
               required
-              margin="normal"
               value={updateEmailData.new_username}
               onChange={(e) =>
                 setUpdateEmailData((data) => ({
@@ -1127,9 +1126,7 @@ const UserManagement = () => {
               fullWidth
               label="Confirm New Email"
               type="email"
-              fullWidth
               required
-              margin="normal"
               value={updateEmailData.confirm_new_username}
               onChange={(e) =>
                 setUpdateEmailData((data) => ({
