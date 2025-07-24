@@ -313,7 +313,6 @@ def test_ip_lock_after_many_failures(client):
     assert r.status_code == 429
     assert "Too many failed login attempts from this IP" in r.json()["detail"]
 
-
 def test_passive_cleanup_old_login_attempts(client, db_session, monkeypatch):
     from app.models import LoginAttempt
     from datetime import datetime, timedelta
@@ -341,6 +340,103 @@ def test_passive_cleanup_old_login_attempts(client, db_session, monkeypatch):
     # Now the old login attempt should be cleaned up
     remaining = db_session.query(LoginAttempt).filter_by(username="olduser@ex.com").all()
     assert len(remaining) <= 1  # Only the new attempt may remain
+
+def test_success_resets_streak(client, db_session):
+    # Create test user
+    u = "resetstreak@example.com"
+    pw = "Test1!Pwd"
+    user = Admin(
+        username=u,
+        hashedPassword=bcrypt_context.hash(pw),
+        activated=True,
+        name="Test",
+        surname="Reset",
+        creationDate=datetime.utcnow()
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    # 2 fails
+    for _ in range(2):
+        r = client.post("/auth/token", data={"username": u, "password": "Wrong1!"})
+        assert r.status_code == 401
+
+    # 1 success (should reset the streak)
+    r = client.post("/auth/token", data={"username": u, "password": pw})
+    assert r.status_code == 200
+
+    # 3 more fails – total is 5 but streak was reset → no lock
+    for _ in range(3):
+        r = client.post("/auth/token", data={"username": u, "password": "Wrong1!"})
+        assert r.status_code == 401
+
+    # Final attempt: should still be allowed (not locked)
+    r = client.post("/auth/token", data={"username": u, "password": pw})
+    assert r.status_code == 200
+
+def test_user_unlocks_after_lock_duration(client, db_session):
+    from app.models import LoginAttempt
+    from app.auth import USER_FAIL_LIMIT, LOCK_DURATION_MINUTES
+
+    u = "unlockafter@example.com"
+    pw = "Unlock1!Pwd"
+    user = Admin(
+        username=u,
+        hashedPassword=bcrypt_context.hash(pw),
+        activated=True,
+        name="Test",
+        surname="Unlock",
+        creationDate=datetime.utcnow()
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    # Cause lock
+    for _ in range(USER_FAIL_LIMIT + 1):
+        r = client.post("/auth/token", data={"username": u, "password": "Wrong1!"})
+    assert r.status_code == 403
+
+    # Manually backdate all failed attempts to just before expiry
+    db_session.query(LoginAttempt).filter_by(username=u).update({
+        LoginAttempt.timestamp: datetime.utcnow() - timedelta(minutes=LOCK_DURATION_MINUTES + 1)
+    })
+    db_session.commit()
+
+    # Retry login after lock duration → should succeed
+    r = client.post("/auth/token", data={"username": u, "password": pw})
+    assert r.status_code == 200
+
+def test_mixed_attempts_dont_lock(client, db_session):
+    u = "mixedorder@example.com"
+    pw = "Mixed1!Pwd"
+    user = Admin(
+        username=u,
+        hashedPassword=bcrypt_context.hash(pw),
+        activated=True,
+        name="Test",
+        surname="Mixed",
+        creationDate=datetime.utcnow()
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    # Fail x2
+    for _ in range(2):
+        r = client.post("/auth/token", data={"username": u, "password": "Wrong1!"})
+        assert r.status_code == 401
+
+    # Success (resets streak)
+    r = client.post("/auth/token", data={"username": u, "password": pw})
+    assert r.status_code == 200
+
+    # Fail x2 → total of 4 fails in window, but not consecutive → not locked
+    for _ in range(2):
+        r = client.post("/auth/token", data={"username": u, "password": "Wrong1!"})
+        assert r.status_code == 401
+
+    # Final login should still succeed
+    r = client.post("/auth/token", data={"username": u, "password": pw})
+    assert r.status_code == 200
 
 # =======================================================================
 # 1. Email-validation flow
