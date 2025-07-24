@@ -17,7 +17,6 @@ const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:800
 export const ApiProvider = ({ children }) => {
   const { token, login, logout } = useAuth()
   const currentTokenRef = useRef(token)
-  const requestCounterRef = useRef(0)
 
   useEffect(() => {
     currentTokenRef.current = token

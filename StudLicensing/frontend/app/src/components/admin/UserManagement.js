@@ -70,17 +70,6 @@ const stableSort = (array, comparator) => {
   return stabilized.map((el) => el[0])
 }
 
-const clearMessageAfterTimeout = (setMessageFn, timeoutRef, setTimeoutRef) => {
-  if (timeoutRef) {
-    clearTimeout(timeoutRef)
-  }
-  const timeout = setTimeout(() => {
-    setMessageFn("")
-    setTimeoutRef(null)
-  }, 10000)
-  setTimeoutRef(timeout)
-}
-
 const UserManagement = () => {
   const { apiCall } = useApi()
   const { hasRole } = useAuth()
