@@ -14,8 +14,16 @@ export const useProfile = () => {
   return context
 }
 
+// Helper function to improve error messages
+const improveErrorMessage = (message) => {
+  if (message === "value is not a valid phone number") {
+    return "Please enter a valid international phone number starting with + followed by country code and number (e.g., +1234567890)"
+  }
+  return message
+}
+
 export const ProfileProvider = ({ children }) => {
-  const [profileInfo, setProfileInfo] = useState({ name: "", surname: "" })
+  const [profileInfo, setProfileInfo] = useState({ name: "", surname: "", phoneNumber: "" })
   const [profilePicture, setProfilePicture] = useState(null)
   const [loading, setLoading] = useState(false)
   const [pictureLoading, setPictureLoading] = useState(false)
@@ -40,6 +48,7 @@ export const ProfileProvider = ({ children }) => {
         setProfileInfo({
           name: data.name || "",
           surname: data.surname || "",
+          phoneNumber: data.phoneNumber || "",
         })
         profileInfoLoaded.current = true
       }
@@ -87,7 +96,31 @@ export const ProfileProvider = ({ children }) => {
         return { success: true }
       } else {
         const errorData = await response.json()
-        return { success: false, error: errorData.detail || "Failed to update profile" }
+
+        // Handle 422 validation errors with detail array
+        if (errorData.detail && Array.isArray(errorData.detail)) {
+          const errorMessages = errorData.detail
+            .map((err) => {
+              if (typeof err === "object" && err.msg) {
+                return improveErrorMessage(err.msg)
+              }
+              return String(err)
+            })
+            .join(", ")
+          return { success: false, error: errorMessages }
+        }
+
+        // Handle single detail string
+        if (typeof errorData.detail === "string") {
+          return { success: false, error: improveErrorMessage(errorData.detail) }
+        }
+
+        // Handle validation error object with msg property
+        if (typeof errorData === "object" && errorData.msg) {
+          return { success: false, error: improveErrorMessage(errorData.msg) }
+        }
+
+        return { success: false, error: "Failed to update profile" }
       }
     } catch (err) {
       return { success: false, error: "Network error. Please try again." }
@@ -115,7 +148,31 @@ export const ProfileProvider = ({ children }) => {
         return { success: true }
       } else {
         const errorData = await response.json()
-        return { success: false, error: errorData.detail || "Failed to update profile picture" }
+
+        // Handle 422 validation errors with detail array
+        if (errorData.detail && Array.isArray(errorData.detail)) {
+          const errorMessages = errorData.detail
+            .map((err) => {
+              if (typeof err === "object" && err.msg) {
+                return improveErrorMessage(err.msg)
+              }
+              return String(err)
+            })
+            .join(", ")
+          return { success: false, error: errorMessages }
+        }
+
+        // Handle single detail string
+        if (typeof errorData.detail === "string") {
+          return { success: false, error: improveErrorMessage(errorData.detail) }
+        }
+
+        // Handle validation error object with msg property
+        if (typeof errorData === "object" && errorData.msg) {
+          return { success: false, error: improveErrorMessage(errorData.msg) }
+        }
+
+        return { success: false, error: "Failed to update profile picture" }
       }
     } catch (err) {
       return { success: false, error: "Network error. Please try again." }
@@ -128,7 +185,7 @@ export const ProfileProvider = ({ children }) => {
       loadProfilePicture()
     } else {
       // Reset state when user logs out
-      setProfileInfo({ name: "", surname: "" })
+      setProfileInfo({ name: "", surname: "", phoneNumber: "" })
       setProfilePicture(null)
       profileInfoLoaded.current = false
       profilePictureLoaded.current = false

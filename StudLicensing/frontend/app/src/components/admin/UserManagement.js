@@ -36,6 +36,33 @@ import Autocomplete from "@mui/material/Autocomplete"
 import { useApi } from "../../contexts/ApiContext"
 import { useAuth } from "../../contexts/AuthContext"
 
+// Phone number validation function
+const validatePhoneNumber = (phoneNumber) => {
+  if (!phoneNumber || phoneNumber.trim() === "") {
+    return { isValid: true, error: "" } // Empty is allowed
+  }
+
+  // International phone number validation - must start with + followed by country code and number
+  const phoneRegex = /^\+[1-9]\d{1,14}$/
+  if (!phoneRegex.test(phoneNumber.replace(/[\s\-()]/g, ""))) {
+    return {
+      isValid: false,
+      error:
+        "Please enter a valid international phone number starting with + followed by country code and number (e.g., +1234567890)",
+    }
+  }
+
+  return { isValid: true, error: "" }
+}
+
+// Helper function to improve error messages
+const improveErrorMessage = (message) => {
+  if (message === "value is not a valid phone number") {
+    return "Please enter a valid international phone number starting with + followed by country code and number (e.g., +1234567890)"
+  }
+  return message
+}
+
 // ---------- Sort helpers ----------
 const descendingComparator = (a, b, orderBy) => {
   let valA = ""
@@ -97,9 +124,13 @@ const UserManagement = () => {
     username: "",
     name: "",
     surname: "",
+    phoneNumber: "",
     user_type: defaultUserType,
     company_id: "", // This will now store the selected company's ID
   })
+
+  const [phoneError, setPhoneError] = useState("")
+  const [editPhoneError, setEditPhoneError] = useState("")
 
   // Use ref to prevent duplicate API calls
   const usersLoaded = useRef(false)
@@ -258,10 +289,19 @@ const UserManagement = () => {
     setLoading(true)
     setCreateError("")
     setSuccess("")
+    setPhoneError("")
 
     if (createErrorTimeout) {
       clearTimeout(createErrorTimeout)
       setCreateErrorTimeout(null)
+    }
+
+    // Frontend validation
+    const phoneValidation = validatePhoneNumber(newUser.phoneNumber)
+    if (!phoneValidation.isValid) {
+      setPhoneError(phoneValidation.error)
+      setLoading(false)
+      return
     }
 
     try {
@@ -269,12 +309,11 @@ const UserManagement = () => {
       formData.append("username", newUser.username)
       formData.append("name", newUser.name)
       formData.append("surname", newUser.surname)
+      if (newUser.phoneNumber) formData.append("phoneNumber", newUser.phoneNumber)
 
       const typeToSend = newUser.user_type === "global_admin" ? "admin" : newUser.user_type
       formData.append("user_type", typeToSend)
 
-      // Only append company_id if it's a global admin creating a user with a company association
-      // and the user type is NOT admin/global_admin
       if (
         isGlobalAdmin &&
         newUser.company_id &&
@@ -292,12 +331,34 @@ const UserManagement = () => {
         setSuccess("User created!")
         clearMessageAfterTimeout(setSuccess, successTimeout, setSuccessTimeout)
         setCreateDialog(false)
-        setNewUser({ username: "", name: "", surname: "", user_type: "company_client", company_id: "" })
+        setNewUser({
+          username: "",
+          name: "",
+          surname: "",
+          phoneNumber: "",
+          user_type: "company_client",
+          company_id: "",
+        })
         usersLoaded.current = false
         fetchAllUsers()
       } else {
         const err = await res.json()
-        const errorMessage = err.detail || "Failed to create user"
+        let errorMessage = "Failed to create user"
+
+        // Handle 422 validation errors with detail array
+        if (err.detail && Array.isArray(err.detail)) {
+          errorMessage = err.detail
+            .map((error) => {
+              if (typeof error === "object" && error.msg) {
+                return improveErrorMessage(error.msg)
+              }
+              return String(error)
+            })
+            .join(", ")
+        } else if (err.detail) {
+          errorMessage = improveErrorMessage(err.detail)
+        }
+
         setCreateError(errorMessage)
         clearErrorAfterTimeout(setCreateError, createErrorTimeout, setCreateErrorTimeout)
       }
@@ -316,10 +377,19 @@ const UserManagement = () => {
     setLoading(true)
     setEditError("")
     setSuccess("")
+    setEditPhoneError("")
 
     if (editErrorTimeout) {
       clearTimeout(editErrorTimeout)
       setEditErrorTimeout(null)
+    }
+
+    // Frontend validation
+    const phoneValidation = validatePhoneNumber(selectedUser.phoneNumber)
+    if (!phoneValidation.isValid) {
+      setEditPhoneError(phoneValidation.error)
+      setLoading(false)
+      return
     }
 
     try {
@@ -328,6 +398,7 @@ const UserManagement = () => {
       params.append("confirm_username", selectedUser.username)
       if (selectedUser.name) params.append("name", selectedUser.name)
       if (selectedUser.surname) params.append("surname", selectedUser.surname)
+      if (selectedUser.phoneNumber) params.append("phoneNumber", selectedUser.phoneNumber)
 
       const res = await apiCall("/admin/update_user_profile_info", {
         method: "POST",
@@ -343,7 +414,22 @@ const UserManagement = () => {
         fetchAllUsers()
       } else {
         const err = await res.json()
-        const errorMessage = err.detail || "Failed to update user"
+        let errorMessage = "Failed to update user"
+
+        // Handle 422 validation errors with detail array
+        if (err.detail && Array.isArray(err.detail)) {
+          errorMessage = err.detail
+            .map((error) => {
+              if (typeof error === "object" && error.msg) {
+                return improveErrorMessage(error.msg)
+              }
+              return String(error)
+            })
+            .join(", ")
+        } else if (err.detail) {
+          errorMessage = improveErrorMessage(err.detail)
+        }
+
         setEditError(errorMessage)
         clearErrorAfterTimeout(setEditError, editErrorTimeout, setEditErrorTimeout)
       }
@@ -771,7 +857,10 @@ const UserManagement = () => {
                               <IconButton
                                 color="success"
                                 onClick={() => {
-                                  setSelectedUser(user)
+                                  setSelectedUser({
+                                    ...user,
+                                    phoneNumber: user.phoneNumber || "", // Add this line to preload phone number
+                                  })
                                   setEditDialog(true)
                                 }}
                               >
@@ -926,6 +1015,19 @@ const UserManagement = () => {
               onChange={(e) => setNewUser({ ...newUser, surname: e.target.value })}
               required
             />
+            <TextField
+              margin="normal"
+              fullWidth
+              label="Phone Number"
+              value={newUser.phoneNumber}
+              onChange={(e) => {
+                setNewUser({ ...newUser, phoneNumber: e.target.value })
+                setPhoneError("") // Clear error when user types
+              }}
+              error={!!phoneError}
+              helperText={phoneError || "International format required (e.g., +1234567890)"}
+              placeholder="+1234567890"
+            />
             <FormControl fullWidth margin="normal" required>
               <InputLabel>User Type</InputLabel> {/* Simplified InputLabel */}
               <Select
@@ -1035,6 +1137,19 @@ const UserManagement = () => {
                   value={selectedUser.surname}
                   onChange={(e) => setSelectedUser({ ...selectedUser, surname: e.target.value })}
                   required
+                />
+                <TextField
+                  margin="normal"
+                  fullWidth
+                  label="Phone Number"
+                  value={selectedUser.phoneNumber || ""}
+                  onChange={(e) => {
+                    setSelectedUser({ ...selectedUser, phoneNumber: e.target.value })
+                    setEditPhoneError("") // Clear error when user types
+                  }}
+                  error={!!editPhoneError}
+                  helperText={editPhoneError || "International format required (e.g., +1234567890)"}
+                  placeholder="+1234567890"
                 />
               </>
             )}

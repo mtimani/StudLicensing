@@ -2,10 +2,12 @@
 # Imports
 # ===========================================
 import os
+import phonenumbers
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, File, status
 from sqlalchemy.orm import Session
 from app.database import SessionLocal
 from pydantic import BaseModel, Field
+from pydantic_extra_types.phone_numbers import PhoneNumber
 from typing import Annotated, Optional
 from sqlalchemy_imageattach.entity import store_context
 from PIL import Image
@@ -61,6 +63,7 @@ db_dependency = Annotated[Session, Depends(get_db)]
 class UpdateProfileInfo(BaseModel):
     name: Optional[str] = Field(None, max_length=50, min_length=1)
     surname: Optional[str] = Field(None, max_length=50, min_length=1)
+    phoneNumber: Optional[PhoneNumber] = Field(None)
 
 
 
@@ -97,6 +100,7 @@ def get_profile_info(
         "username": db_user.username,
         "name": db_user.name,
         "surname": db_user.surname,
+        "phoneNumber": db_user.phoneNumber
     }
 
 # Update profile information route => PUT /profile/info
@@ -129,6 +133,11 @@ def update_profile_info(
     if update_data.surname is not None:
         db_user.surname = update_data.surname
 
+    if update_data.phoneNumber is not None:
+        number_obj = phonenumbers.parse(str(update_data.phoneNumber), None)
+        formatted = phonenumbers.format_number(number_obj, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
+        db_user.phoneNumber = formatted
+
     # 4. Commit the changes to the database
     db.commit()
     db.refresh(db_user)
@@ -141,6 +150,7 @@ def update_profile_info(
             "username": db_user.username,
             "name": db_user.name,
             "surname": db_user.surname,
+            "phoneNumber": db_user.phoneNumber,
         }
     }
 

@@ -573,6 +573,58 @@ def test_create_user_with_long_domain_email(client, db_session):
     assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
     assert response.json()["username"] == long_domain_email
 
+def test_create_user_with_valid_phone_number(client, db_session):
+    """Test creating a user with a valid international phone number."""
+    company = create_test_company(db_session)
+    response = client.post(
+        "/admin/account_create",
+        data={
+            "username": "phoneuser@example.com",
+            "name": "Phone",
+            "surname": "User",
+            "user_type": UserTypeEnum.company_admin.value,
+            "company_id": company.id,
+            "phoneNumber": "+33 6 11 22 33 44"
+        }
+    )
+    assert response.status_code == 201, f"Expected 201, got {response.status_code}: {response.text}"
+    # Optional: check the user exists in the DB with the normalized phone number format
+    user = db_session.query(Users).filter_by(username="phoneuser@example.com").first()
+    assert user is not None
+    assert user.phoneNumber == "+33 6 11 22 33 44"
+
+def test_create_user_with_invalid_phone_number(client, db_session):
+    """Test creating a user with an invalid phone number format (should fail)."""
+    company = create_test_company(db_session)
+    response = client.post(
+        "/admin/account_create",
+        data={
+            "username": "badphone@example.com",
+            "name": "Bad",
+            "surname": "Phone",
+            "user_type": UserTypeEnum.company_admin.value,
+            "company_id": company.id,
+            "phoneNumber": "123456"  # Clearly invalid
+        }
+    )
+    assert response.status_code == 422, f"Expected 422, got {response.status_code}: {response.text}"
+
+def test_create_user_with_empty_phone_number(client, db_session):
+    """Test creating a user with an empty phone number (should fail validation)."""
+    company = create_test_company(db_session)
+    response = client.post(
+        "/admin/account_create",
+        data={
+            "username": "emptyphone@example.com",
+            "name": "Empty",
+            "surname": "Phone",
+            "user_type": UserTypeEnum.company_admin.value,
+            "company_id": company.id,
+            "phoneNumber": ""
+        }
+    )
+    assert response.status_code == 422, f"Expected 422, got {response.status_code}: {response.text}"
+
 # ===========================================
 # Tests for /admin/delete_user Endpoint
 # ===========================================
@@ -927,7 +979,7 @@ def test_update_user_profile_info_partial_update(client, db_session):
     )
     assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
     assert response.json()["user"]["name"] == "UpdatedName"
-    assert response.json()["user"]["surname"] is None  # Should not be updated
+    assert response.json()["user"]["surname"] == user.surname # Should remain unchanged
 
 def test_update_user_profile_info_special_characters(client, db_session):
     """Test updating user profile info with special characters."""
@@ -978,6 +1030,46 @@ def test_update_user_profile_info_empty_strings(client, db_session):
     )
     assert response.status_code == 422, f"Expected 422, got {response.status_code}: {response.text}"
     assert "string_too_short" in str(response.json()), "Error should indicate string length validation failure"
+
+def test_update_user_profile_info_with_valid_phone_number(client, db_session):
+    """Test updating a user's phone number with a valid value."""
+    user = create_test_user(db_session, user_type=UserTypeEnum.company_admin)
+    response = client.post(
+        "/admin/update_user_profile_info",
+        data={
+            "username": user.username,
+            "confirm_username": user.username,
+            "phoneNumber": "+33 6 11 22 33 44"
+        }
+    )
+    assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+    assert response.json()["user"]["phoneNumber"] == "+33 6 11 22 33 44"
+
+def test_update_user_profile_info_with_invalid_phone_number(client, db_session):
+    """Test updating a user's phone number with an invalid format (should fail)."""
+    user = create_test_user(db_session, user_type=UserTypeEnum.company_admin)
+    response = client.post(
+        "/admin/update_user_profile_info",
+        data={
+            "username": user.username,
+            "confirm_username": user.username,
+            "phoneNumber": "123456"  # Invalid
+        }
+    )
+    assert response.status_code == 422, f"Expected 422, got {response.status_code}: {response.text}"
+
+def test_update_user_profile_info_with_empty_phone_number(client, db_session):
+    """Test updating a user's phone number with an empty value (should fail)."""
+    user = create_test_user(db_session, user_type=UserTypeEnum.company_admin)
+    response = client.post(
+        "/admin/update_user_profile_info",
+        data={
+            "username": user.username,
+            "confirm_username": user.username,
+            "phoneNumber": ""
+        }
+    )
+    assert response.status_code == 422, f"Expected 422, got {response.status_code}: {response.text}"
 
 # ===========================================
 # Tests for /admin/add_client_user_to_company Endpoint

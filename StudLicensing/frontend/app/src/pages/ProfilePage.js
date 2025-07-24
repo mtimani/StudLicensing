@@ -31,8 +31,27 @@ import { useApi } from "../contexts/ApiContext"
 import { useProfile } from "../contexts/ProfileContext"
 import UserAvatar from "../components/UserAvatar"
 
+// Phone number validation function
+const validatePhoneNumber = (phoneNumber) => {
+  if (!phoneNumber || phoneNumber.trim() === "") {
+    return { isValid: true, error: "" } // Empty is allowed
+  }
+
+  // International phone number validation - must start with + followed by country code and number
+  const phoneRegex = /^\+[1-9]\d{1,14}$/
+  if (!phoneRegex.test(phoneNumber.replace(/[\s\-()]/g, ""))) {
+    return {
+      isValid: false,
+      error:
+        "Please enter a valid international phone number starting with + followed by country code and number (e.g., +1234567890)",
+    }
+  }
+
+  return { isValid: true, error: "" }
+}
+
 const ProfilePage = () => {
-  const [localProfileInfo, setLocalProfileInfo] = useState({ name: "", surname: "" })
+  const [localProfileInfo, setLocalProfileInfo] = useState({ name: "", surname: "", phoneNumber: "" })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
@@ -52,6 +71,7 @@ const ProfilePage = () => {
   const { profileInfo, profilePicture, updateProfileInfo, updateProfilePicture } = useProfile()
   const navigate = useNavigate()
   const theme = useTheme()
+  const [phoneError, setPhoneError] = useState("")
 
   const clearErrorAfterTimeout = (setErrorFn, timeoutRef, setTimeoutRef) => {
     if (timeoutRef) {
@@ -77,20 +97,30 @@ const ProfilePage = () => {
 
   // Initialize local state when profileInfo is loaded
   useEffect(() => {
-    if (profileInfo.name || profileInfo.surname) {
+    if (profileInfo.name || profileInfo.surname || profileInfo.phoneNumber) {
       setLocalProfileInfo({
         name: profileInfo.name,
         surname: profileInfo.surname,
+        phoneNumber: profileInfo.phoneNumber,
       })
       setInitialized(true)
     }
-  }, [profileInfo.name, profileInfo.surname])
+  }, [profileInfo.name, profileInfo.surname, profileInfo.phoneNumber])
 
   const handleProfileUpdate = async (e) => {
     e.preventDefault()
     setLoading(true)
     setError("")
     setSuccess("")
+    setPhoneError("")
+
+    // Frontend validation
+    const phoneValidation = validatePhoneNumber(localProfileInfo.phoneNumber)
+    if (!phoneValidation.isValid) {
+      setPhoneError(phoneValidation.error)
+      setLoading(false)
+      return
+    }
 
     const result = await updateProfileInfo(localProfileInfo)
 
@@ -338,6 +368,21 @@ const ProfilePage = () => {
                     onChange={(e) => setLocalProfileInfo({ ...localProfileInfo, surname: e.target.value })}
                     variant="outlined"
                     sx={{ mb: 2 }}
+                  />
+                  <TextField
+                    margin="normal"
+                    fullWidth
+                    label="Phone Number"
+                    value={localProfileInfo.phoneNumber}
+                    onChange={(e) => {
+                      setLocalProfileInfo({ ...localProfileInfo, phoneNumber: e.target.value })
+                      setPhoneError("") // Clear error when user types
+                    }}
+                    variant="outlined"
+                    sx={{ mb: 2 }}
+                    error={!!phoneError}
+                    helperText={phoneError || "International format required (e.g., +1234567890)"}
+                    placeholder="+1234567890"
                   />
                   <TextField
                     margin="normal"

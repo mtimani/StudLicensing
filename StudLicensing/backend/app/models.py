@@ -75,6 +75,7 @@ class Users(Base):
     username = Column(String, unique=True, index=True)
     name = Column(String, nullable=False)
     surname = Column(String, nullable=False)
+    phoneNumber = Column(String(50), nullable=True)
     hashedPassword = Column(String, nullable=True)
     creationDate = Column(DateTime, nullable=False)
     activated = Column(Boolean, default=False, nullable=False)

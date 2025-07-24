@@ -192,6 +192,16 @@ def test_get_profile_info_user_not_found(client, db_session):
     assert resp.status_code == 403
     assert resp.json()["detail"] == "User not found"
 
+def test_get_profile_info_with_phone_number(client, db_session, test_user):
+    test_user.phoneNumber = "+33 6 11 22 33 44"
+    db_session.commit()
+
+    response = client.get("/profile/info")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["phoneNumber"] == "+33 6 11 22 33 44"
+
+
 def test_update_profile_info_partial_name_only(client, test_user):
     # Update only name
     payload = {"name": "SoloName"}
@@ -211,6 +221,30 @@ def test_update_profile_info_validation_error_empty_string(client):
     # Name empty string (violates min_length=1)
     resp = client.put("/profile/info", json={"name": ""})
     assert resp.status_code == 422  # Pydantic validation error
+
+def test_update_profile_info_with_valid_phone_number(client, test_user):
+    payload = {
+        "phoneNumber": "+33 6 11 22 33 44"
+    }
+    response = client.put("/profile/info", json=payload)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["detail"] == "Profile updated successfully"
+    assert data["user"]["phoneNumber"] == "+33 6 11 22 33 44"
+
+def test_update_profile_info_with_invalid_phone_number(client):
+    payload = {
+        "phoneNumber": "123456"  # Invalid format
+    }
+    response = client.put("/profile/info", json=payload)
+    assert response.status_code == 422
+
+def test_update_profile_info_with_empty_phone_number(client):
+    payload = {
+        "phoneNumber": ""
+    }
+    response = client.put("/profile/info", json=payload)
+    assert response.status_code == 422
 
 def test_get_profile_picture_no_picture(client, test_user):
     resp = client.get("/profile/picture")

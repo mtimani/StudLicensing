@@ -2,10 +2,12 @@
 # Imports
 # ========================================================
 import os
+import phonenumbers
 from fastapi import APIRouter, Depends, HTTPException, Response, Form, File, UploadFile, status
 from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 from pydantic import BaseModel, EmailStr
+from pydantic_extra_types.phone_numbers import PhoneNumber
 from typing import Annotated, Optional
 from datetime import timedelta, datetime
 from sqlalchemy_imageattach.entity import store_context
@@ -65,6 +67,7 @@ async def create_user(
     surname: str = Form(...),
     user_type: UserTypeEnum = Form(...),
     company_id: Optional[int] = Form(None),
+    phoneNumber: Optional[PhoneNumber] = Form(None),
     profilePicture: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
@@ -227,6 +230,11 @@ async def create_user(
     }
     if user_type not in {UserTypeEnum.admin, UserTypeEnum.company_client}:
         user_kwargs["company_id"] = company_id
+
+    if phoneNumber is not None:
+        number_obj = phonenumbers.parse(str(phoneNumber), None)
+        formatted = phonenumbers.format_number(number_obj, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
+        user_kwargs["phoneNumber"] = formatted
 
     # 13. For new CompanyClient, do not associate company directly in kwargs to avoid premature list initialization issues
     if user_type == UserTypeEnum.company_client and company_id:
@@ -627,6 +635,7 @@ def update_user_profile_info(
         max_length=50,
         description="Surname (1-50 characters)",
     ),
+    phoneNumber: Optional[PhoneNumber] = Form(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -711,6 +720,10 @@ def update_user_profile_info(
             db_user.name = name
         if surname is not None:
             db_user.surname = surname
+        if phoneNumber is not None:
+            number_obj = phonenumbers.parse(str(phoneNumber), None)
+            formatted = phonenumbers.format_number(number_obj, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
+            db_user.phoneNumber = formatted
     else:
         # Check if the company id is the same
         if user_type == UserTypeEnum.company_client:
@@ -722,6 +735,10 @@ def update_user_profile_info(
                     db_user.name = name
                 if surname is not None:
                     db_user.surname = surname
+                if phoneNumber is not None:
+                    number_obj = phonenumbers.parse(str(phoneNumber), None)
+                    formatted = phonenumbers.format_number(number_obj, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
+                    db_user.phoneNumber = formatted
             else:
                 logger.error(f'The user {current_user["username"]} with id = {current_user["id"]} and a company_id = {db_requesting_user.company_id} tried to modify the user profile of the user {username} with id = with id = {db_user.id} belonging to companies = {client_company_ids}.')
                 raise HTTPException(
@@ -741,6 +758,10 @@ def update_user_profile_info(
                     db_user.name = name
                 if surname is not None:
                     db_user.surname = surname
+                if phoneNumber is not None:
+                    number_obj = phonenumbers.parse(str(phoneNumber), None)
+                    formatted = phonenumbers.format_number(number_obj, phonenumbers.PhoneNumberFormat.INTERNATIONAL)
+                    db_user.phoneNumber = formatted
     
     # 11. Commit the changes to the database
     db.commit()
@@ -751,9 +772,10 @@ def update_user_profile_info(
     return {
         "detail": "User profile information updated successfully",
         "user": {
-            "username": username,
-            "name": name,
-            "surname": surname,
+            "username": db_user.username,
+            "name": db_user.name,
+            "surname": db_user.surname,
+            "phoneNumber": db_user.phoneNumber,
         }
     }
 
@@ -1071,6 +1093,7 @@ def search_user(
             "name": user.name,
             "surname": user.surname,
             "user_type": user.userType,
+            "phoneNumber": user.phoneNumber,
             "company": company_ids,
             "company_title": company_titles
         })
