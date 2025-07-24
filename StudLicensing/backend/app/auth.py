@@ -715,7 +715,7 @@ async def login_for_access_token(
             if (now - attempt.timestamp).total_seconds() < LOCK_DURATION_MINUTES * 60:
                 raise HTTPException(
                     status_code=403,
-                    detail="Account temporarily locked due to repeated failed login attempts."
+                    detail="Account temporarily locked due to repeated failed login attempts. Try again in 10 minutes."
                 )
             break  # Past lock window; allow login
 
