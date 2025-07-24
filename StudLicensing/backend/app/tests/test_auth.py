@@ -266,6 +266,82 @@ def test_login_with_x_forwarded_for_header(client, db_session, monkeypatch):
     assert r.status_code == 200
     assert "access_token" in r.json()
 
+# =====================================================================
+# Integration tests - Lockout during login
+# =====================================================================
+def test_user_lock_after_failed_attempts(client, db_session):
+    u = "locktest@example.com"
+    pw = "Valid1!Pwd"
+    user = Admin(
+        username=u,
+        hashedPassword=bcrypt_context.hash(pw),
+        activated=True,
+        name="Lock",
+        surname="User",
+        creationDate=datetime.utcnow()
+    )
+    db_session.add(user)
+    db_session.commit()
+
+    # Perform 5 failed attempts
+    for _ in range(5):
+        r = client.post("/auth/token", data={"username": u, "password": "Wrong1!"})
+        assert r.status_code == 401
+
+    # 6th should lock
+    r = client.post("/auth/token", data={"username": u, "password": "Wrong1!"})
+    assert r.status_code == 403
+    assert "Account temporarily locked" in r.json()["detail"]
+
+
+def test_ip_lock_after_many_failures(client):
+    ip = "192.0.2.50"
+    headers = {"X-Forwarded-For": ip}
+    
+    for i in range(20):
+        r = client.post("/auth/token", data={
+            "username": f"notfound{i}@ex.com",
+            "password": "Wrong1!"
+        }, headers=headers)
+        assert r.status_code == 401
+
+    # 21st should trigger IP block
+    r = client.post("/auth/token", data={
+        "username": "stillwrong@ex.com",
+        "password": "Wrong1!"
+    }, headers=headers)
+    assert r.status_code == 429
+    assert "Too many failed login attempts from this IP" in r.json()["detail"]
+
+
+def test_passive_cleanup_old_login_attempts(client, db_session, monkeypatch):
+    from app.models import LoginAttempt
+    from datetime import datetime, timedelta
+
+    old_entry = LoginAttempt(
+        username="olduser@ex.com",
+        ip_address="203.0.113.1",
+        success=False,
+        timestamp=datetime.utcnow() - timedelta(days=3)
+    )
+    db_session.add(old_entry)
+    db_session.commit()
+    
+    assert db_session.query(LoginAttempt).filter_by(username="olduser@ex.com").count() == 1
+
+    # Force cleanup by making random.random return 0.0 (i.e., trigger 5% logic)
+    monkeypatch.setattr("random.random", lambda: 0.0)
+
+    # Trigger a dummy login
+    r = client.post("/auth/token", data={
+        "username": "olduser@ex.com",
+        "password": "Wrong1!"
+    })
+
+    # Now the old login attempt should be cleaned up
+    remaining = db_session.query(LoginAttempt).filter_by(username="olduser@ex.com").all()
+    assert len(remaining) <= 1  # Only the new attempt may remain
+
 # =======================================================================
 # 1. Email-validation flow
 # =========================================================================

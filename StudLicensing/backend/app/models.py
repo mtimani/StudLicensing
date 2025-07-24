@@ -268,3 +268,13 @@ class PasswordResetTokens(Base):
     is_used = Column(Boolean, default=False)
     
     user = relationship("Users", backref="password_reset_tokens")
+
+# Table used to track login attempts => used for preventing bruteforce attacks
+class LoginAttempt(Base):
+    __tablename__ = "login_attempts"
+    
+    id = Column(Integer, primary_key=True)
+    username = Column(String, index=True)
+    ip_address = Column(String, index=True)
+    success = Column(Boolean, default=False)
+    timestamp = Column(DateTime, default=datetime.utcnow)

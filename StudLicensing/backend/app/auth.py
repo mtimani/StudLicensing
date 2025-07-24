@@ -5,6 +5,7 @@ import os
 import smtplib
 import uuid
 import re
+import random
 from app.logger import logger, login_logger
 from datetime import timedelta, datetime
 from typing import Annotated, Optional
@@ -21,8 +22,8 @@ from dotenv import find_dotenv
 from email.message import EmailMessage
 from app.models import (
     Users, UserTypeEnum, Admin, 
-    SessionTokens, ValidationTokens, PasswordResetTokens, 
-    store
+    SessionTokens, ValidationTokens, PasswordResetTokens,
+    LoginAttempt, store
 )
 
 
@@ -62,7 +63,12 @@ if SUPERADMIN_ACCOUNT_PASSWORD is None:
 # ========================================================
 AUTHENTICATION_TIME = 20 # In minutes
 VALIDATION_TOKEN_TIME = 24 # In hours
-PASSWOED_RESET_TOKEN_TIME = 1 # In hours
+PASSWORD_RESET_TOKEN_TIME = 1 # In hours
+IP_FAIL_LIMIT = 20
+IP_WINDOW_MINUTES = 10
+USER_FAIL_LIMIT = 5
+USER_WINDOW_HOURS = 1
+LOCK_DURATION_MINUTES = 10
 
 
 
@@ -399,7 +405,7 @@ def create_password_reset_token(
     """
 
     # 1. Setup expiry time of 1 hour
-    expires_delta = expires_delta or timedelta(hours=PASSWOED_RESET_TOKEN_TIME)
+    expires_delta = expires_delta or timedelta(hours=PASSWORD_RESET_TOKEN_TIME)
     expire_time = datetime.utcnow() + expires_delta
 
     # 2. Create a unique token
@@ -678,15 +684,62 @@ async def login_for_access_token(
     else:
         client_ip = request.client.host
 
-    # 2. Return the user information if the provided login/user information is valid
+    # 2. Check if the IP or username has exceeded failed login limits
+    now = datetime.utcnow()
+
+    # ========== [IP Blocking Check] ==========
+    ip_attempts = db.query(LoginAttempt).filter(
+        LoginAttempt.ip_address == client_ip,
+        LoginAttempt.success == False,
+        LoginAttempt.timestamp >= now - timedelta(minutes=IP_WINDOW_MINUTES)
+    ).count()
+
+    if ip_attempts >= IP_FAIL_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail="Too many failed login attempts from this IP. Try again in 10 minutes."
+        )
+
+    # ========== [Account Lock Check] ==========
+    user_attempts = db.query(LoginAttempt).filter(
+        LoginAttempt.username == form_data.username,
+        LoginAttempt.success == False,
+        LoginAttempt.timestamp >= now - timedelta(hours=USER_WINDOW_HOURS)
+    ).order_by(LoginAttempt.timestamp.desc()).all()
+
+    if len(user_attempts) >= USER_FAIL_LIMIT:
+        last_attempt_time = user_attempts[0].timestamp
+        if (now - last_attempt_time).total_seconds() < LOCK_DURATION_MINUTES * 60:
+            raise HTTPException(
+                status_code=403,
+                detail="Account temporarily locked due to repeated failed login attempts. Try again in 10 minutes."
+            )
+
+    # 3. Return the user information if the provided login/user information is valid
     user = authenticate_user(form_data.username, form_data.password, db)
 
-    # 3. If the provided login/user information is not valid => Throw a non-generic error
+    # 4. Log the login attempt (success or fail)
+    db.add(LoginAttempt(
+        username=form_data.username,
+        ip_address=client_ip,
+        success=bool(user),
+        timestamp=now
+    ))
+    db.commit()
+
+    # 5. Passive cleanup of old login attempts
+    if random.random() < 0.05:
+        db.query(LoginAttempt).filter(
+            LoginAttempt.timestamp < now - timedelta(days=2)
+        ).delete()
+        db.commit()
+
+    # 6. If the provided login/user information is not valid => Throw a non-generic error
     if not user:
         login_logger.warning(f"FAILED login attempt for username: {form_data.username} from IP: {client_ip}")
         raise HTTPException(status_code = status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password.")
     
-    # 4. If the user is valid create a JWT for the user
+    # 7. If the user is valid create a JWT for the user
     access_token = create_access_token(
         user.username, 
         user.id, 
@@ -695,10 +748,10 @@ async def login_for_access_token(
         db
     )
     
-    # 5. Log the successful login attempt
+    # 8. Log the successful login attempt
     login_logger.info(f"SUCCESSFUL login for username: {user.username} (user_id: {user.id}) from IP: {client_ip}")
 
-    # 6. return the JWT access token to the user
+    # 9. return the JWT access token to the user
     return {"access_token": access_token, "token_type": "bearer"}
 
 # Logout a user => POST /auth/logout  
