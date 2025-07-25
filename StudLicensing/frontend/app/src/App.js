@@ -10,6 +10,7 @@ import ResetPasswordPage from "./pages/ResetPasswordPage"
 import Dashboard from "./pages/Dashboard"
 import AdminDashboard from "./pages/AdminDashboard"
 import ProfilePage from "./pages/ProfilePage"
+import ViewUserProfilePage from "./pages/ViewUserProfilePage" // Import the new page
 import { ProfileProvider } from "./contexts/ProfileContext"
 
 function App() {
@@ -47,6 +48,17 @@ function App() {
                   element={
                     <ProtectedRoute>
                       <ProfilePage />
+                    </ProtectedRoute>
+                  }
+                />
+                {/* New route for viewing other user profiles */}
+                <Route
+                  path="/admin/users/:username/profile"
+                  element={
+                    <ProtectedRoute
+                      requiredRoles={["admin", "company_admin", "company_developper", "company_commercial"]}
+                    >
+                      <ViewUserProfilePage />
                     </ProtectedRoute>
                   }
                 />

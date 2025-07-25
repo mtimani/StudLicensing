@@ -31,10 +31,11 @@ import {
   Tooltip,
   Menu,
 } from "@mui/material"
-import { Add, Edit, Delete, Email, Settings } from "@mui/icons-material"
+import { Add, Edit, Delete, Email, Settings, InfoOutlined } from "@mui/icons-material" // Import InfoOutlined
 import Autocomplete from "@mui/material/Autocomplete"
 import { useApi } from "../../contexts/ApiContext"
 import { useAuth } from "../../contexts/AuthContext"
+import { useNavigate } from "react-router-dom" // Import useNavigate
 
 // Phone number validation function
 const validatePhoneNumber = (phoneNumber) => {
@@ -100,10 +101,14 @@ const stableSort = (array, comparator) => {
 const UserManagement = () => {
   const { apiCall } = useApi()
   const { hasRole } = useAuth()
+  const navigate = useNavigate() // Initialize useNavigate
+
   const isAdmin = hasRole(["admin"])
-  const canOnlyCreateClient = hasRole(["company_developper", "company_commercial"])
   const isCompanyAdmin = hasRole(["company_admin"])
   const isGlobalAdmin = hasRole(["admin"])
+
+  // New variable to control visibility of the actions column
+  const canViewUserActions = hasRole(["admin", "company_admin", "company_developper", "company_commercial"])
 
   // ---------- State ----------
   const [allUsers, setAllUsers] = useState([]) // Store all users from API
@@ -245,11 +250,6 @@ const UserManagement = () => {
   // ---------- Client-side filtering ----------
   const filteredUsers = useMemo(() => {
     return allUsers.filter((user) => {
-      // Hide administrator@studlicensing.local from actions
-      if (user.username === "administrator@studlicensing.local") {
-        // Still show in list but will hide actions in render
-      }
-
       // Search term filter
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase()
@@ -556,9 +556,9 @@ const UserManagement = () => {
           // Do not reset newUser.company_id here, it's handled by the user type change
         } else if (addToCompanyDialog) {
           const userCompanyIds = addDialogUserCompanyIds.current
-          const userCompanyNames = addDialogUserCompanyTitles.current
+          const userCompanyTitles = addDialogUserCompanyTitles.current
           const filtered = allCompanies.filter(
-            (c) => !userCompanyIds.includes(c.company_id) && !userCompanyNames.includes(c.company_name),
+            (c) => !userCompanyIds.includes(c.company_id) && !userCompanyTitles.includes(c.company_name),
           )
           setCompanyOptions(filtered)
           setFilteredCompanyOptions(filtered)
@@ -810,13 +810,13 @@ const UserManagement = () => {
                   </TableSortLabel>
                 </TableCell>
               ))}
-              {!canOnlyCreateClient && <TableCell sx={{ fontWeight: "bold" }}>Actions</TableCell>}
+              {canViewUserActions && <TableCell sx={{ fontWeight: "bold" }}>Actions</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
             {sortedUsers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} align="center">
+                <TableCell colSpan={canViewUserActions ? 6 : 5} align="center">
                   <Typography>{loading ? "Loading..." : "No users found"}</Typography>
                 </TableCell>
               </TableRow>
@@ -849,10 +849,20 @@ const UserManagement = () => {
                           ))
                         : "–"}
                     </TableCell>
-                    {!canOnlyCreateClient && (
+                    {canViewUserActions && (
                       <TableCell>
                         {!isProtectedUser ? (
                           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
+                            {/* New Info Button */}
+                            <Tooltip title="View Profile">
+                              <IconButton
+                                color="info"
+                                onClick={() => navigate(`/admin/users/${user.username}/profile`)}
+                              >
+                                <InfoOutlined />
+                              </IconButton>
+                            </Tooltip>
+                            {/* Edit Button */}
                             <Tooltip title="Edit">
                               <IconButton
                                 color="success"
@@ -874,6 +884,7 @@ const UserManagement = () => {
                                 </IconButton>
                               </Tooltip>
                             )}
+                            {/* Delete Button */}
                             <Tooltip title="Delete">
                               <IconButton
                                 color="error"
@@ -1043,7 +1054,7 @@ const UserManagement = () => {
                 }}
                 label="User Type" // Simplified label prop to match InputLabel
               >
-                {canOnlyCreateClient ? (
+                {hasRole(["company_developper", "company_commercial"]) ? (
                   <MenuItem value="company_client">{userTypeLabels["company_client"]}</MenuItem>
                 ) : isCompanyAdmin ? (
                   userTypes

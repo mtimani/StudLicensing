@@ -307,9 +307,15 @@ const ProfilePage = () => {
               </Alert>
             )}
 
-            <Grid container spacing={4}>
+            <Grid container spacing={4} alignItems="center">
               <Grid item xs={12} md={4}>
-                <Box display="flex" flexDirection="column" alignItems="center">
+                <Box
+                  display="flex"
+                  flexDirection="column"
+                  alignItems="center"
+                  justifyContent="center" // Added for vertical centering
+                  sx={{ height: "100%" }} // Ensures the box takes full height of the grid item
+                >
                   <Avatar
                     src={profilePicture || undefined}
                     sx={{
@@ -348,7 +354,6 @@ const ProfilePage = () => {
                   </label>
                 </Box>
               </Grid>
-
               <Grid item xs={12} md={8}>
                 <Box component="form" onSubmit={handleProfileUpdate}>
                   <TextField

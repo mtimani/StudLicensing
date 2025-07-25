@@ -4,20 +4,24 @@
 # ===========================================
 import pytest
 import uuid
+import io
+import os
+import tempfile
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.database import Base
-from app.models import Company, Users, UserTypeEnum, CompanyAdmin, CompanyClient, CompanyCommercial, CompanyDevelopper, Admin, SessionTokens, companies_clients_correspondance
+from app.models import Company, Users, UserTypeEnum, CompanyAdmin, CompanyClient, CompanyCommercial, CompanyDevelopper, Admin, SessionTokens, UserPicture, companies_clients_correspondance
+from app.models import store as image_store
 from app.admin import router, get_db
 from app.auth import get_current_user
 from fastapi import FastAPI
 from datetime import datetime, timedelta
-import os
-import tempfile
 from PIL import Image
-import io
+from io import BytesIO
+
+
 
 # ===========================================
 # Test App Setup
@@ -1409,3 +1413,73 @@ def test_search_user_client_with_multiple_companies_only_shows_one(client, db_se
     # it should only show C1, not C2
     assert u["company"] == [c1.id]
     assert u["company_title"] == [c1.companyName]
+
+# ===========================================
+# Tests for /admin/search_user Endpoint
+# ===========================================
+def create_image_bytes():
+    img = Image.new("RGB", (100, 100), color="blue")
+    buf = BytesIO()
+    img.save(buf, format="JPEG")
+    buf.seek(0)
+    return buf.read()
+
+def add_picture_to_user(user, db_session):
+    pic = UserPicture()
+    pic.file = BytesIO(create_image_bytes())
+    pic.mimetype = "image/jpeg"
+    pic.width = 100
+    pic.height = 100
+    pic.store = image_store
+    user.profilePicture = [pic]
+    db_session.commit()
+
+
+def test_admin_can_access_any_profile_picture(client, db_session):
+    company = create_test_company(db_session)
+    target_user = create_test_user(db_session, user_type=UserTypeEnum.company_admin, company_id=company.id)
+    add_picture_to_user(target_user, db_session)
+
+    response = client.post("/admin/get_user_profile_picture", data={"username": target_user.username})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/jpeg"
+
+
+def test_company_client_cannot_access_profile_picture(client, db_session):
+    company = create_test_company(db_session)
+    user = create_test_user(db_session, user_type=UserTypeEnum.company_client, company_id=company.id)
+    target_user = create_test_user(db_session, user_type=UserTypeEnum.company_admin, company_id=company.id)
+    add_picture_to_user(target_user, db_session)
+
+    client = override_user_type(client, UserTypeEnum.company_client, user_id=user.id, username=user.username)
+    response = client.post("/admin/get_user_profile_picture", data={"username": target_user.username})
+    assert response.status_code == 403
+
+
+def test_company_admin_can_access_same_company_picture(client, db_session):
+    company = create_test_company(db_session)
+    admin_user = create_test_user(db_session, user_type=UserTypeEnum.company_admin, company_id=company.id)
+    target_user = create_test_user(db_session, user_type=UserTypeEnum.company_commercial, company_id=company.id)
+    add_picture_to_user(target_user, db_session)
+
+    client = override_user_type(client, UserTypeEnum.company_admin, user_id=admin_user.id, username=admin_user.username)
+    response = client.post("/admin/get_user_profile_picture", data={"username": target_user.username})
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/jpeg"
+
+
+def test_company_developer_cannot_access_commercial_picture(client, db_session):
+    company = create_test_company(db_session)
+    dev_user = create_test_user(db_session, user_type=UserTypeEnum.company_developper, company_id=company.id)
+    target_user = create_test_user(db_session, user_type=UserTypeEnum.company_commercial, company_id=company.id)
+    add_picture_to_user(target_user, db_session)
+
+    client = override_user_type(client, UserTypeEnum.company_developper, user_id=dev_user.id, username=dev_user.username)
+    response = client.post("/admin/get_user_profile_picture", data={"username": target_user.username})
+    assert response.status_code == 403
+
+
+def test_access_picture_of_nonexistent_user_returns_forbidden(client, db_session):
+    response = client.post("/admin/get_user_profile_picture", data={"username": "ghost@example.com"})
+    assert response.status_code == 403
+    assert "Access forbidden" in response.text

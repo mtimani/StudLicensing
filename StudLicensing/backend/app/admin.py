@@ -21,7 +21,7 @@ from app.models import (
     Admin, CompanyAdmin, CompanyClient, 
     CompanyCommercial, CompanyDevelopper, Company,
     SessionTokens, ValidationTokens, PasswordResetTokens,
-    store
+    UserPicture, store
 )
 
 
@@ -52,6 +52,39 @@ def get_db():
 # Dependencies setup
 # ========================================================
 db_dependency = Annotated[Session, Depends(get_db)]
+
+
+
+# ========================================================
+# Helper functions
+# ========================================================
+
+# Extract user profile picture
+def _extract_profile_picture_response(user: Users):
+    """
+    Utility function to extract and return the user's profile picture.
+    """
+    pictures = list(user.profilePicture)
+    if not pictures:
+        logger.warning(f'User {user.username} has no profile picture set.')
+        raise HTTPException(status_code=404, detail="Profile picture not found.")
+
+    picture = pictures[0]
+
+    # Vérifie explicitement que le backend de stockage existe et est utilisable
+    if not hasattr(picture, "store") or picture.store is None:
+        logger.warning(f"Profile picture store is missing for user {user.username}.")
+        raise HTTPException(status_code=404, detail="Profile picture not found.")
+
+    try:
+        with picture.store.open(picture) as f:
+            content = f.read()
+    except (OSError, FileNotFoundError, AttributeError) as e:
+        logger.warning(f"Unable to read image for user {user.username}: {str(e)}")
+        raise HTTPException(status_code=404, detail="Profile picture not found.")
+
+    mimetype = picture.mimetype or "application/octet-stream"
+    return Response(content=content, media_type=mimetype)
 
 
 
@@ -1099,3 +1132,82 @@ def search_user(
         })
 
     return {"users": users_payload}
+
+# Return user profile picture => POST /admin/get_user_profile_picture
+@router.post("/get_user_profile_picture")
+def get_user_profile_picture(
+    current_user: dict = Depends(get_current_user),
+    username: EmailStr = Form(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Securely retrieves the profile picture of a specified user, following role and company-based rules.
+    Prevents user enumeration and logs all authorization failures.
+    """
+    # 1. Block company_client entirely
+    if current_user["type"] == UserTypeEnum.company_client:
+        logger.warning(f"Access denied: company_client '{current_user['username']}' attempted to access profile picture of '{username}'.")
+        raise HTTPException(status_code=403, detail="Access forbidden.")
+
+    # 2. Fetch the current user from DB
+    current_user_db = db.query(Users).filter(Users.id == current_user["id"]).first()
+    if not current_user_db:
+        logger.error(f"Current user '{current_user['username']}' with id={current_user['id']} not found in DB.")
+        raise HTTPException(status_code=403, detail="Access forbidden.")
+
+    # 3. Admins bypass checks (but no user enumeration)
+    if current_user["type"] == UserTypeEnum.admin:
+        db_user = db.query(Users).filter(Users.username == username).first()
+        if not db_user:
+            logger.warning(f"Admin '{current_user['username']}' attempted to access profile picture of nonexistent user '{username}'.")
+            raise HTTPException(status_code=403, detail="Access forbidden.")
+        return _extract_profile_picture_response(db_user)
+
+    # 4. Fetch target user after access intent is verified
+    db_user = db.query(Users).filter(Users.username == username).first()
+    if not db_user:
+        logger.warning(f"User '{current_user['username']}' attempted to access profile picture of nonexistent user '{username}'.")
+        raise HTTPException(status_code=403, detail="Access forbidden.")
+
+    # 5. Verify same company relationship (secure version, avoids AttributeError)
+    if current_user["type"] == UserTypeEnum.company_admin and db_user.userType != UserTypeEnum.admin:
+        both_have_company = hasattr(current_user_db, "company_id") and hasattr(db_user, "company_id")
+        if not (both_have_company and current_user_db.company_id == db_user.company_id):
+            logger.warning(f"Unauthorized profile picture access attempt by '{current_user['username']}' on user '{username}' (cross-company).")
+            raise HTTPException(status_code=403, detail="Access forbidden.")
+    elif db_user.userType == UserTypeEnum.company_client:
+        # current_user_db must be CompanyAdmin or similar
+        target_companies = {c.id for c in db_user.companies}
+        if not hasattr(current_user_db, "company_id") or current_user_db.company_id not in target_companies:
+            logger.warning(f"Unauthorized profile picture access attempt by '{current_user['username']}' on company_client '{username}' (not same company).")
+            raise HTTPException(status_code=403, detail="Access forbidden.")
+    else:
+        # Case where both should have company_id (e.g., dev → dev, dev → commercial)
+        both_have_company = hasattr(current_user_db, "company_id") and hasattr(db_user, "company_id")
+        if not (both_have_company and current_user_db.company_id == db_user.company_id):
+            logger.warning(f"Unauthorized profile picture access attempt by '{current_user['username']}' on user '{username}' (cross-company or invalid).")
+            raise HTTPException(status_code=403, detail="Access forbidden.")
+
+    # 6. Role-specific restrictions
+    if current_user["type"] == UserTypeEnum.company_commercial and db_user.userType in {
+        UserTypeEnum.company_admin, UserTypeEnum.company_developper
+    }:
+        logger.warning(f"Access denied: company_commercial '{current_user['username']}' attempted to access '{username}' of type '{db_user.userType}'.")
+        raise HTTPException(status_code=403, detail="Access forbidden.")
+
+    if current_user["type"] == UserTypeEnum.company_developper and db_user.userType in {
+        UserTypeEnum.company_admin, UserTypeEnum.company_commercial
+    }:
+        logger.warning(f"Access denied: company_developper '{current_user['username']}' attempted to access '{username}' of type '{db_user.userType}'.")
+        raise HTTPException(status_code=403, detail="Access forbidden.")
+
+    logger.info(f"User '{current_user['username']}' successfully accessed profile picture of '{username}'.")
+
+    # 7. Check if profile picture exists
+    pictures = list(db_user.profilePicture)
+    if not pictures:
+        logger.warning(f"No profile picture found for user '{username}' accessed by '{current_user['username']}'.")
+        raise HTTPException(status_code=404, detail="No profile picture found.")
+
+    # 8. Return the picture
+    return _extract_profile_picture_response(db_user)
