@@ -3,16 +3,16 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
-    "@emotion/react": "^11.11.1",
+    "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.0",
-    "@mui/icons-material": "^5.14.19",
-    "@mui/material": "^5.14.20",
+    "@mui/icons-material": "^5.15.20",
+    "@mui/material": "^5.15.20",
     "jwt-decode": "^4.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.25.1",
     "react-scripts": "^5.0.1",
-    "web-vitals": "^2.1.4"
+    "web-vitals": "^3.5.2"
   },
   "scripts": {
     "start": "NODE_OPTIONS='--no-deprecation' react-scripts start",
