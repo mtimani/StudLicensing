@@ -66,7 +66,7 @@ const ViewUserProfilePage = () => {
           setProfileData({
             name: user.name || "",
             surname: user.surname || "",
-            email: user.email || "", // Corrected from user.username to user.email
+            email: username, // Corrected: Use username from URL params for email
             phoneNumber: user.phoneNumber || "",
             user_type: user.user_type || "",
             // Ensure company_title is always an array for consistent rendering
@@ -285,7 +285,7 @@ const ViewUserProfilePage = () => {
                       </ListItemIcon>
                       <ListItemText
                         primary="Email"
-                        secondary={profileData.email || "-"}
+                        secondary={profileData.email || "-"} // This will now correctly display the email from URL params
                         primaryTypographyProps={{ variant: "subtitle2", color: "text.secondary" }}
                         secondaryTypographyProps={{ variant: "body1", fontWeight: "medium" }}
                       />
