@@ -66,7 +66,7 @@ const ViewUserProfilePage = () => {
           setProfileData({
             name: user.name || "",
             surname: user.surname || "",
-            email: username, // Corrected: Use username from URL params for email
+            email: username,
             phoneNumber: user.phoneNumber || "",
             user_type: user.user_type || "",
             // Ensure company_title is always an array for consistent rendering
@@ -254,7 +254,11 @@ const ViewUserProfilePage = () => {
                         primary="First Name"
                         secondary={profileData.name || "-"}
                         primaryTypographyProps={{ variant: "subtitle2", color: "text.secondary" }}
-                        secondaryTypographyProps={{ variant: "body1", fontWeight: "medium" }}
+                        secondaryTypographyProps={{
+                          variant: "body1",
+                          fontWeight: "medium",
+                          sx: { wordBreak: "break-word" }, // Added for responsiveness
+                        }}
                       />
                     </ListItem>
                     <ListItem>
@@ -265,7 +269,11 @@ const ViewUserProfilePage = () => {
                         primary="Last Name"
                         secondary={profileData.surname || "-"}
                         primaryTypographyProps={{ variant: "subtitle2", color: "text.secondary" }}
-                        secondaryTypographyProps={{ variant: "body1", fontWeight: "medium" }}
+                        secondaryTypographyProps={{
+                          variant: "body1",
+                          fontWeight: "medium",
+                          sx: { wordBreak: "break-word" }, // Added for responsiveness
+                        }}
                       />
                     </ListItem>
                     <ListItem>
@@ -276,7 +284,11 @@ const ViewUserProfilePage = () => {
                         primary="Phone Number"
                         secondary={profileData.phoneNumber || "-"}
                         primaryTypographyProps={{ variant: "subtitle2", color: "text.secondary" }}
-                        secondaryTypographyProps={{ variant: "body1", fontWeight: "medium" }}
+                        secondaryTypographyProps={{
+                          variant: "body1",
+                          fontWeight: "medium",
+                          sx: { wordBreak: "break-word" }, // Added for responsiveness
+                        }}
                       />
                     </ListItem>
                     <ListItem>
@@ -285,9 +297,13 @@ const ViewUserProfilePage = () => {
                       </ListItemIcon>
                       <ListItemText
                         primary="Email"
-                        secondary={profileData.email || "-"} // This will now correctly display the email from URL params
+                        secondary={profileData.email || "-"}
                         primaryTypographyProps={{ variant: "subtitle2", color: "text.secondary" }}
-                        secondaryTypographyProps={{ variant: "body1", fontWeight: "medium" }}
+                        secondaryTypographyProps={{
+                          variant: "body1",
+                          fontWeight: "medium",
+                          sx: { wordBreak: "break-word" }, // Already present, ensuring consistency
+                        }}
                       />
                     </ListItem>
                     <ListItem>
@@ -298,7 +314,11 @@ const ViewUserProfilePage = () => {
                         primary="User Type"
                         secondary={getRoleDisplayName(profileData.user_type)}
                         primaryTypographyProps={{ variant: "subtitle2", color: "text.secondary" }}
-                        secondaryTypographyProps={{ variant: "body1", fontWeight: "medium" }}
+                        secondaryTypographyProps={{
+                          variant: "body1",
+                          fontWeight: "medium",
+                          sx: { wordBreak: "break-word" }, // Added for responsiveness
+                        }}
                       />
                     </ListItem>
                     {profileData.user_type !== "admin" && (
@@ -310,7 +330,11 @@ const ViewUserProfilePage = () => {
                           primary={profileData.company_title.length > 1 ? "Companies" : "Company"}
                           secondary={profileData.company_title.length > 0 ? profileData.company_title.join(", ") : "-"}
                           primaryTypographyProps={{ variant: "subtitle2", color: "text.secondary" }}
-                          secondaryTypographyProps={{ variant: "body1", fontWeight: "medium" }}
+                          secondaryTypographyProps={{
+                            variant: "body1",
+                            fontWeight: "medium",
+                            sx: { wordBreak: "break-word" }, // Added for responsiveness
+                          }}
                         />
                       </ListItem>
                     )}
